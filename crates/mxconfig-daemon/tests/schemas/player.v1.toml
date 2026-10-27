@@ -1,0 +1,45 @@
+# The player app at v1, as an older build is generated from.
+
+namespace = "org.example.player"
+version = 1
+backend = "daemon"
+
+[groups.audio]
+label = "Audio"
+order = 10
+
+[keys.audio.volume]
+type = "integer"
+default = 80
+label = "Volume"
+description = "Output volume"
+min = 0
+max = 100
+
+[keys.audio.mute]
+type = "bool"
+default = false
+label = "Mute"
+description = "Silence the output"
+
+[keys.audio.output]
+type = "enum"
+values = ["speakers", "headphones", "hdmi"]
+default = "speakers"
+label = "Output"
+description = "Where sound goes"
+
+[keys.audio.delay]
+type = "string"
+default = "0"
+label = "Delay"
+description = "Delay in milliseconds, as text"
+
+[keys.audio.eq]
+type = "string"
+default = "flat"
+label = "Equalizer"
+description = "Equalizer preset"
+
+[assets.layout]
+path = "layout.yaml"

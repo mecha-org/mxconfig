@@ -1,0 +1,6 @@
+# The demo sets the shared display brightness.
+client = "org.mechanix.demo"
+
+[[settings]]
+namespace = "org.mechanix.desktop.display"
+access = "read-write"

@@ -1,0 +1,17 @@
+[package]
+name = "mxconfig-example"
+description = "A normal Rust client of the generated typed API."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+mxconfig = { path = "../mxconfig" }
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,24 @@
+[package]
+name = "mxconfig-ffi"
+description = "flutter_rust_bridge bindings over mxconfig for Dart and Flutter."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "mxconfig"
+crate-type = ["cdylib", "staticlib"]
+# The core crate's docs use the same name.
+doc = false
+
+[dependencies]
+mxconfig = { path = "../mxconfig" }
+anyhow.workspace = true
+flutter_rust_bridge = "=2.13.0"
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

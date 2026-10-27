@@ -1,0 +1,5 @@
+# Install as /usr/share/dbus-1/services/org.mechanix.MxConfig.service: starts the session daemon on first call.
+[D-BUS Service]
+Name=org.mechanix.MxConfig
+Exec=/usr/bin/mxconfigd
+SystemdService=mxconfigd.service

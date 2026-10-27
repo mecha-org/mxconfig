@@ -1,0 +1,286 @@
+pub mod mxconfig
+pub use mxconfig::AssetSchema
+pub use mxconfig::Class
+pub use mxconfig::Datetime
+pub use mxconfig::Diagnostic
+pub use mxconfig::Group
+pub use mxconfig::KeySchema
+pub use mxconfig::KeyType
+pub use mxconfig::Schema
+pub use mxconfig::Severity
+pub use mxconfig::Table
+pub use mxconfig::Value
+pub use mxconfig::client
+pub mod mxconfig::runtime
+pub mod mxconfig::runtime::wire
+pub enum mxconfig::runtime::wire::Arg
+pub mxconfig::runtime::wire::Arg::Array(alloc::string::String, alloc::vec::Vec<mxconfig::runtime::wire::Arg>)
+pub mxconfig::runtime::wire::Arg::Bool(bool)
+pub mxconfig::runtime::wire::Arg::Dict(alloc::vec::Vec<(mxconfig::runtime::wire::Arg, mxconfig::runtime::wire::Arg)>)
+pub mxconfig::runtime::wire::Arg::Fd(alloc::rcs::arc::Arc<std::os::fd::owned::OwnedFd>)
+pub mxconfig::runtime::wire::Arg::Kept(mxconfig::runtime::Kept)
+pub mxconfig::runtime::wire::Arg::Str(alloc::string::String)
+pub mxconfig::runtime::wire::Arg::Struct(alloc::vec::Vec<mxconfig::runtime::wire::Arg>)
+pub mxconfig::runtime::wire::Arg::U64(u64)
+pub mxconfig::runtime::wire::Arg::Unreadable
+pub mxconfig::runtime::wire::Arg::Variant(alloc::boxed::Box<mxconfig::runtime::wire::Arg>)
+pub struct mxconfig::runtime::wire::Call
+pub mxconfig::runtime::wire::Call::args: alloc::vec::Vec<mxconfig::runtime::wire::Arg>
+pub mxconfig::runtime::wire::Call::destination: &'static str
+pub mxconfig::runtime::wire::Call::id: u64
+pub mxconfig::runtime::wire::Call::interactive: bool
+pub mxconfig::runtime::wire::Call::interface: &'static str
+pub mxconfig::runtime::wire::Call::keep: bool
+pub mxconfig::runtime::wire::Call::member: &'static str
+pub mxconfig::runtime::wire::Call::path: &'static str
+pub struct mxconfig::runtime::wire::Rule
+pub mxconfig::runtime::wire::Rule::arg0: core::option::Option<&'static str>
+pub mxconfig::runtime::wire::Rule::interface: &'static str
+pub mxconfig::runtime::wire::Rule::member: &'static str
+pub mxconfig::runtime::wire::Rule::sender: &'static str
+impl mxconfig::runtime::wire::Rule
+pub fn mxconfig::runtime::wire::Rule::text(&self) -> alloc::string::String
+pub const mxconfig::runtime::wire::RULES: [mxconfig::runtime::wire::Rule; 3]
+#[non_exhaustive] pub enum mxconfig::runtime::Event
+pub mxconfig::runtime::Event::Failed
+pub mxconfig::runtime::Event::Failed::id: u64
+pub mxconfig::runtime::Event::Failed::message: alloc::string::String
+pub mxconfig::runtime::Event::Failed::name: alloc::string::String
+pub mxconfig::runtime::Event::Reply
+pub mxconfig::runtime::Event::Reply::args: alloc::vec::Vec<mxconfig::runtime::wire::Arg>
+pub mxconfig::runtime::Event::Reply::id: u64
+pub mxconfig::runtime::Event::Signal
+pub mxconfig::runtime::Event::Signal::args: alloc::vec::Vec<mxconfig::runtime::wire::Arg>
+pub mxconfig::runtime::Event::Signal::interface: alloc::string::String
+pub mxconfig::runtime::Event::Signal::member: alloc::string::String
+pub mxconfig::runtime::Event::Signal::sender: alloc::string::String
+impl mxconfig::runtime::Event
+pub fn mxconfig::runtime::Event::timed_out(u64) -> mxconfig::runtime::Event
+pub fn mxconfig::runtime::Event::unsent(u64, impl core::fmt::Display) -> mxconfig::runtime::Event
+pub struct mxconfig::runtime::Kept(_)
+pub trait mxconfig::runtime::Drive
+pub fn mxconfig::runtime::Drive::close(&self, mxconfig::Bus)
+pub fn mxconfig::runtime::Drive::deliver(&self, mxconfig::Bus, mxconfig::runtime::Event)
+pub fn mxconfig::runtime::Drive::feed_inotify(&self, &[u8])
+pub fn mxconfig::runtime::Drive::inotify_fd(&self) -> core::result::Result<std::os::fd::owned::OwnedFd, mxconfig::Error>
+pub fn mxconfig::runtime::Drive::kept(&self, mxconfig::Bus, u64) -> mxconfig::runtime::wire::Arg
+pub fn mxconfig::runtime::Drive::reach(&self, mxconfig::Bus)
+pub fn mxconfig::runtime::Drive::rescan(&self)
+pub fn mxconfig::runtime::Drive::take_calls(&self, mxconfig::Bus) -> alloc::vec::Vec<mxconfig::runtime::wire::Call>
+pub fn mxconfig::runtime::Drive::take_released(&self, mxconfig::Bus) -> alloc::vec::Vec<u64>
+pub fn mxconfig::runtime::Drive::take_watch_dirs(&self) -> core::option::Option<alloc::vec::Vec<std::path::PathBuf>>
+pub fn mxconfig::runtime::Drive::touched(&self, &std::path::Path)
+pub fn mxconfig::runtime::Drive::unreach(&self, mxconfig::Bus)
+impl mxconfig::runtime::Drive for mxconfig::Source
+pub fn mxconfig::Source::close(&self, mxconfig::Bus)
+pub fn mxconfig::Source::deliver(&self, mxconfig::Bus, mxconfig::runtime::Event)
+pub fn mxconfig::Source::feed_inotify(&self, &[u8])
+pub fn mxconfig::Source::inotify_fd(&self) -> core::result::Result<std::os::fd::owned::OwnedFd, mxconfig::Error>
+pub fn mxconfig::Source::kept(&self, mxconfig::Bus, u64) -> mxconfig::runtime::wire::Arg
+pub fn mxconfig::Source::reach(&self, mxconfig::Bus)
+pub fn mxconfig::Source::rescan(&self)
+pub fn mxconfig::Source::take_calls(&self, mxconfig::Bus) -> alloc::vec::Vec<mxconfig::runtime::wire::Call>
+pub fn mxconfig::Source::take_released(&self, mxconfig::Bus) -> alloc::vec::Vec<u64>
+pub fn mxconfig::Source::take_watch_dirs(&self) -> core::option::Option<alloc::vec::Vec<std::path::PathBuf>>
+pub fn mxconfig::Source::touched(&self, &std::path::Path)
+pub fn mxconfig::Source::unreach(&self, mxconfig::Bus)
+#[non_exhaustive] pub enum mxconfig::Access
+pub mxconfig::Access::Read
+pub mxconfig::Access::ReadWrite
+impl core::fmt::Display for mxconfig::Access
+pub fn mxconfig::Access::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub enum mxconfig::Bus
+pub mxconfig::Bus::Session
+pub mxconfig::Bus::System
+impl mxconfig::Bus
+pub fn mxconfig::Bus::serving(mxconfig_schema::class::Class) -> mxconfig::Bus
+impl core::fmt::Display for mxconfig::Bus
+pub fn mxconfig::Bus::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::str::traits::FromStr for mxconfig::Bus
+pub type mxconfig::Bus::Err = mxconfig::Error
+pub fn mxconfig::Bus::from_str(&str) -> core::result::Result<mxconfig::Bus, mxconfig::Error>
+#[non_exhaustive] pub enum mxconfig::Detach
+pub mxconfig::Detach::Closed
+pub mxconfig::Detach::Moved
+impl core::fmt::Display for mxconfig::Detach
+pub fn mxconfig::Detach::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+#[non_exhaustive] pub enum mxconfig::ErrorKind
+pub mxconfig::ErrorKind::Denied
+pub mxconfig::ErrorKind::Detached
+pub mxconfig::ErrorKind::Invalid
+pub mxconfig::ErrorKind::Other
+pub mxconfig::ErrorKind::Unconfirmed
+pub mxconfig::ErrorKind::Unknown
+pub mxconfig::ErrorKind::Unreachable(mxconfig::Bus)
+pub mxconfig::ErrorKind::VersionConflict
+#[non_exhaustive] pub enum mxconfig::Event<T: mxconfig::Namespace>
+pub mxconfig::Event::Changed(<T as mxconfig::Namespace>::Change)
+pub mxconfig::Event::Detached(mxconfig::Detach)
+pub mxconfig::Event::Diagnosed(alloc::vec::Vec<mxconfig_schema::error::Diagnostic>)
+pub mxconfig::Event::OpenFailed(mxconfig::Error)
+pub mxconfig::Event::Opened(T)
+pub mxconfig::Event::WriteFailed(mxconfig::Error)
+pub mxconfig::Event::Written
+#[non_exhaustive] pub enum mxconfig::LayerKind
+pub mxconfig::LayerKind::Admin
+pub mxconfig::LayerKind::User
+pub mxconfig::LayerKind::Vendor
+impl core::fmt::Display for mxconfig::LayerKind
+pub fn mxconfig::LayerKind::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+#[non_exhaustive] pub enum mxconfig::Origin
+pub mxconfig::Origin::Daemon
+pub mxconfig::Origin::Env
+pub mxconfig::Origin::Env::var: alloc::string::String
+pub mxconfig::Origin::File
+pub mxconfig::Origin::File::kind: mxconfig::LayerKind
+pub mxconfig::Origin::File::path: std::path::PathBuf
+pub mxconfig::Origin::Schema
+impl core::fmt::Display for mxconfig::Origin
+pub fn mxconfig::Origin::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+#[non_exhaustive] pub enum mxconfig::Outcome
+pub mxconfig::Outcome::AssetChanged
+pub mxconfig::Outcome::AssetChanged::id: alloc::string::String
+pub mxconfig::Outcome::AssetChanged::namespace: alloc::string::String
+pub mxconfig::Outcome::Changed(mxconfig::Change)
+pub mxconfig::Outcome::Detached
+pub mxconfig::Outcome::Detached::cause: mxconfig::Detach
+pub mxconfig::Outcome::Detached::namespace: alloc::string::String
+pub mxconfig::Outcome::Diagnosed
+pub mxconfig::Outcome::Diagnosed::diagnostics: alloc::vec::Vec<mxconfig_schema::error::Diagnostic>
+pub mxconfig::Outcome::Diagnosed::namespace: alloc::string::String
+pub mxconfig::Outcome::OpenFailed
+pub mxconfig::Outcome::OpenFailed::error: mxconfig::Error
+pub mxconfig::Outcome::OpenFailed::namespace: alloc::string::String
+pub mxconfig::Outcome::OpenFailed::ticket: mxconfig::TicketId
+pub mxconfig::Outcome::Opened
+pub mxconfig::Outcome::Opened::namespace: alloc::string::String
+pub mxconfig::Outcome::Opened::settings: mxconfig::Settings
+pub mxconfig::Outcome::Opened::ticket: mxconfig::TicketId
+pub mxconfig::Outcome::WriteFailed
+pub mxconfig::Outcome::WriteFailed::error: mxconfig::Error
+pub mxconfig::Outcome::WriteFailed::namespace: alloc::string::String
+pub mxconfig::Outcome::WriteFailed::ticket: mxconfig::TicketId
+pub mxconfig::Outcome::Written
+pub mxconfig::Outcome::Written::namespace: alloc::string::String
+pub mxconfig::Outcome::Written::ticket: mxconfig::TicketId
+impl mxconfig::Outcome
+pub fn mxconfig::Outcome::change<T: mxconfig::Namespace>(&self) -> core::option::Option<<T as mxconfig::Namespace>::Change>
+pub fn mxconfig::Outcome::event<T: mxconfig::Namespace>(&self) -> core::option::Option<mxconfig::Event<T>>
+pub fn mxconfig::Outcome::namespace(&self) -> &str
+#[non_exhaustive] pub enum mxconfig::Presence
+pub mxconfig::Presence::NoBus
+pub mxconfig::Presence::NoDaemon
+pub mxconfig::Presence::Running
+pub enum mxconfig::Write
+#[non_exhaustive] pub struct mxconfig::Asset
+pub mxconfig::Asset::id: alloc::string::String
+pub mxconfig::Asset::origin: mxconfig::Origin
+pub mxconfig::Asset::path: std::path::PathBuf
+impl mxconfig::Asset
+pub fn mxconfig::Asset::read(&self) -> core::io::error::Result<alloc::vec::Vec<u8>>
+pub fn mxconfig::Asset::text(&self) -> core::io::error::Result<alloc::string::String>
+#[non_exhaustive] pub struct mxconfig::Change
+pub mxconfig::Change::key: alloc::string::String
+pub mxconfig::Change::namespace: alloc::string::String
+pub mxconfig::Change::revision: u64
+pub mxconfig::Change::value: core::option::Option<toml::value::Value>
+pub struct mxconfig::Edit
+impl mxconfig::Edit
+pub fn mxconfig::Edit::key(&self) -> &str
+pub fn mxconfig::Edit::remove(impl core::convert::Into<alloc::string::String>) -> mxconfig::Edit
+pub fn mxconfig::Edit::set(impl core::convert::Into<alloc::string::String>, impl core::convert::Into<toml::value::Value>) -> mxconfig::Edit
+pub struct mxconfig::Error(_)
+impl mxconfig::Error
+pub fn mxconfig::Error::kind(&self) -> mxconfig::ErrorKind
+pub fn mxconfig::Error::other_version(&self) -> core::option::Option<u32>
+impl core::convert::From<mxconfig_schema::error::Error> for mxconfig::Error
+pub fn mxconfig::Error::from(mxconfig_schema::error::Error) -> Self
+pub struct mxconfig::Manifest
+pub mxconfig::Manifest::client: alloc::string::String
+impl mxconfig::Manifest
+pub fn mxconfig::Manifest::parse(&str) -> core::result::Result<mxconfig::Manifest, mxconfig::Error>
+pub struct mxconfig::Resolved
+impl mxconfig::Resolved
+pub fn mxconfig::Resolved::diagnostics(&self) -> &[mxconfig_schema::error::Diagnostic]
+pub fn mxconfig::Resolved::get(&self, &str) -> core::option::Option<&toml::value::Value>
+pub fn mxconfig::Resolved::iter(&self) -> impl core::iter::traits::iterator::Iterator<Item = (&alloc::string::String, &toml::value::Value)>
+pub fn mxconfig::Resolved::origin(&self, &str) -> core::option::Option<&mxconfig::Origin>
+pub fn mxconfig::Resolved::revision(&self) -> u64
+pub struct mxconfig::Settings
+impl mxconfig::Settings
+pub fn mxconfig::Settings::asset(&self, &str) -> core::option::Option<mxconfig::Asset>
+pub fn mxconfig::Settings::describe(&self) -> alloc::rcs::arc::Arc<mxconfig_schema::schema::Schema>
+pub fn mxconfig::Settings::diagnostics(&self) -> alloc::vec::Vec<mxconfig_schema::error::Diagnostic>
+pub fn mxconfig::Settings::from_daemon(&self) -> bool
+pub fn mxconfig::Settings::get(&self, &str) -> core::option::Option<toml::value::Value>
+pub fn mxconfig::Settings::on_defaults(&self) -> bool
+pub fn mxconfig::Settings::other_version(&self) -> core::option::Option<u32>
+pub fn mxconfig::Settings::resolved(&self) -> mxconfig::Resolved
+pub fn mxconfig::Settings::revision(&self) -> u64
+impl mxconfig::Settings
+pub fn mxconfig::Settings::clear_asset(&self, &str) -> core::result::Result<mxconfig::Ticket<mxconfig::Write>, mxconfig::Error>
+pub fn mxconfig::Settings::write(&self, &[mxconfig::Edit]) -> core::result::Result<mxconfig::Ticket<mxconfig::Write>, mxconfig::Error>
+pub fn mxconfig::Settings::write_asset(&self, &str, &[u8]) -> core::result::Result<mxconfig::Ticket<mxconfig::Write>, mxconfig::Error>
+pub fn mxconfig::Settings::write_asset_from(&self, &str, std::os::fd::owned::OwnedFd) -> core::result::Result<mxconfig::Ticket<mxconfig::Write>, mxconfig::Error>
+impl mxconfig::Settings
+pub fn mxconfig::Settings::with_manifest(self, &mxconfig::Manifest, mxconfig::Access) -> core::result::Result<mxconfig::Settings, mxconfig::Error>
+impl core::fmt::Debug for mxconfig::Settings
+pub fn mxconfig::Settings::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl mxconfig::FromSettings for mxconfig::Settings
+pub fn mxconfig::Settings::from_settings(mxconfig::Settings) -> Self
+pub struct mxconfig::Source
+impl mxconfig::Source
+pub fn mxconfig::Source::daemon(&self, mxconfig::Bus) -> mxconfig::Presence
+pub fn mxconfig::Source::new() -> mxconfig::Source
+pub fn mxconfig::Source::outcomes(&self) -> alloc::vec::Vec<mxconfig::Outcome>
+pub fn mxconfig::Source::request<T: mxconfig::Namespace>(&self) -> mxconfig::Ticket<T>
+impl mxconfig::Source
+pub fn mxconfig::Source::set_app(&self, &str)
+impl core::default::Default for mxconfig::Source
+pub fn mxconfig::Source::default() -> Self
+impl core::fmt::Debug for mxconfig::Source
+pub fn mxconfig::Source::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl mxconfig::runtime::Drive for mxconfig::Source
+pub fn mxconfig::Source::close(&self, mxconfig::Bus)
+pub fn mxconfig::Source::deliver(&self, mxconfig::Bus, mxconfig::runtime::Event)
+pub fn mxconfig::Source::feed_inotify(&self, &[u8])
+pub fn mxconfig::Source::inotify_fd(&self) -> core::result::Result<std::os::fd::owned::OwnedFd, mxconfig::Error>
+pub fn mxconfig::Source::kept(&self, mxconfig::Bus, u64) -> mxconfig::runtime::wire::Arg
+pub fn mxconfig::Source::reach(&self, mxconfig::Bus)
+pub fn mxconfig::Source::rescan(&self)
+pub fn mxconfig::Source::take_calls(&self, mxconfig::Bus) -> alloc::vec::Vec<mxconfig::runtime::wire::Call>
+pub fn mxconfig::Source::take_released(&self, mxconfig::Bus) -> alloc::vec::Vec<u64>
+pub fn mxconfig::Source::take_watch_dirs(&self) -> core::option::Option<alloc::vec::Vec<std::path::PathBuf>>
+pub fn mxconfig::Source::touched(&self, &std::path::Path)
+pub fn mxconfig::Source::unreach(&self, mxconfig::Bus)
+pub struct mxconfig::Ticket<T>
+impl mxconfig::Ticket<mxconfig::Write>
+pub fn mxconfig::Ticket<mxconfig::Write>::written(&self, &mxconfig::Outcome) -> core::option::Option<core::result::Result<(), mxconfig::Error>>
+impl<T: mxconfig::FromSettings> mxconfig::Ticket<T>
+pub fn mxconfig::Ticket<T>::opened(&self, &mxconfig::Outcome) -> core::option::Option<core::result::Result<T, mxconfig::Error>>
+impl<T> mxconfig::Ticket<T>
+pub fn mxconfig::Ticket<T>::id(&self) -> mxconfig::TicketId
+impl<T> core::clone::Clone for mxconfig::Ticket<T>
+pub fn mxconfig::Ticket<T>::clone(&self) -> Self
+impl<T> core::cmp::Eq for mxconfig::Ticket<T>
+impl<T> core::cmp::PartialEq for mxconfig::Ticket<T>
+pub fn mxconfig::Ticket<T>::eq(&self, &Self) -> bool
+impl<T> core::fmt::Debug for mxconfig::Ticket<T>
+pub fn mxconfig::Ticket<T>::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<T> core::hash::Hash for mxconfig::Ticket<T>
+pub fn mxconfig::Ticket<T>::hash<H: core::hash::Hasher>(&self, &mut H)
+impl<T> core::marker::Copy for mxconfig::Ticket<T>
+pub struct mxconfig::TicketId(_)
+impl core::convert::From<mxconfig::TicketId> for u64
+pub fn u64::from(mxconfig::TicketId) -> u64
+pub trait mxconfig::FromSettings: core::marker::Sized
+pub fn mxconfig::FromSettings::from_settings(mxconfig::Settings) -> Self
+impl mxconfig::FromSettings for mxconfig::Settings
+pub fn mxconfig::Settings::from_settings(mxconfig::Settings) -> Self
+pub trait mxconfig::Namespace: mxconfig::FromSettings
+pub type mxconfig::Namespace::Change
+pub const mxconfig::Namespace::NAMESPACE: &'static str
+pub const mxconfig::Namespace::SCHEMA: &'static str
+pub fn mxconfig::Namespace::asset_change(&str) -> core::option::Option<Self::Change>
+pub fn mxconfig::Namespace::change(&mxconfig::Change) -> core::option::Option<Self::Change>
+

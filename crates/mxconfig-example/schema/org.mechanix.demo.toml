@@ -1,0 +1,64 @@
+# An example app schema.
+
+namespace = "org.mechanix.demo"
+version = 2
+
+# Groups and how a UI shows them. Keys are addressed by path.
+[groups.colors]
+label = "Colors"
+order = 10
+
+[keys.colors.accent]
+type = "string"
+default = "#7aa2f7"
+label = "Accent"
+description = "The color the app highlights with."
+
+[keys.colors.corner_radius]
+type = "integer"
+default = 8
+label = "Corner radius"
+description = "Corner radius in pixels."
+min = 0
+max = 64
+
+[keys.colors.mode]
+type = "enum"
+values = ["light", "dark"]
+default = "dark"
+label = "Mode"
+description = "Light or dark."
+
+[keys.colors.scale]
+type = "float"
+default = 1.0
+label = "Scale"
+description = "Interface scale factor."
+min = 0.5
+max = 3.0
+
+# Ungrouped keys. `env` names a var that overrides every layer.
+[keys.verbose]
+type = "bool"
+default = false
+label = "Verbose"
+description = "Log extra detail."
+env = "MECHANIX_DEMO_VERBOSE"
+
+[keys.nickname]
+type = "string"
+label = "Nickname"
+description = "Shown in the title bar; unset until the user picks one."
+
+[keys.last_seen]
+type = "datetime"
+label = "Last seen"
+description = "When the app last ran; unset on its first launch."
+
+# v1 had `colors.radius` and no `colors.mode`.
+[[migration]]
+from = 1
+to = 2
+ops = [
+  { op = "rename", from = "colors.radius", to = "colors.corner_radius" },
+]

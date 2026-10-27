@@ -1,0 +1,28 @@
+[package]
+name = "mxconfig-daemon"
+description = "mxconfigd: the mxconfig D-Bus daemon."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "mxconfigd"
+path = "src/main.rs"
+
+[dependencies]
+mxconfig = { path = "../mxconfig" }
+zbus.workspace = true
+tokio = { workspace = true, features = ["net", "sync"] }
+anyhow.workspace = true
+clap.workspace = true
+nix.workspace = true
+
+[dev-dependencies]
+futures-util.workspace = true
+tempfile.workspace = true
+zbus.workspace = true
+tokio = { workspace = true, features = ["time", "test-util"] }
+
+[lints]
+workspace = true

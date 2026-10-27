@@ -1,0 +1,17 @@
+[package]
+name = "mxconfig-macros"
+description = "The `client!` macro, which generates a typed client from an mxconfig schema."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+mxconfig-codegen = { path = "../mxconfig-codegen" }
+mxconfig-schema = { path = "../mxconfig-schema" }
+
+[lints]
+workspace = true

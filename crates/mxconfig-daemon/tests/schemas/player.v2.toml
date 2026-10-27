@@ -1,0 +1,56 @@
+# The player app at v2: a rename, a retype, a retired key, a new key and a dropped enum value.
+
+namespace = "org.example.player"
+version = 2
+backend = "daemon"
+
+[groups.audio]
+label = "Audio"
+order = 10
+
+[keys.audio.level]
+type = "integer"
+default = 80
+label = "Level"
+description = "Output level"
+min = 0
+max = 100
+
+[keys.audio.mute]
+type = "bool"
+default = false
+label = "Mute"
+description = "Silence the output"
+
+[keys.audio.output]
+type = "enum"
+values = ["speakers", "headphones"]
+default = "speakers"
+label = "Output"
+description = "Where sound goes"
+
+[keys.audio.delay]
+type = "integer"
+default = 0
+label = "Delay"
+description = "Delay in milliseconds"
+
+[keys.audio.balance]
+type = "integer"
+default = 0
+label = "Balance"
+description = "Left to right"
+
+[assets.layout]
+path = "layout.yaml"
+
+[[migration]]
+from = 1
+to = 2
+ops = [
+  { op = "rename", from = "audio.volume", to = "audio.level" },
+  { op = "retype", key = "audio.delay", from = "string", to = "integer" },
+]
+
+[retired]
+keys = ["audio.eq"]
