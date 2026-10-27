@@ -1,0 +1,8 @@
+# Install to /usr/lib/systemd/user/.
+[Unit]
+Description=mxconfig session settings service
+
+[Service]
+Type=dbus
+BusName=org.mechanix.MxConfig
+ExecStart=/usr/bin/mxconfigd

@@ -1,0 +1,57 @@
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+ "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<!-- mxconfigd's interface. docs/protocol.md describes the protocol. -->
+<!-- Each method takes the app the caller is. A Flatpak is always its own app. -->
+<node>
+  <interface name="org.mechanix.MxConfig">
+    <!-- The namespaces this app may access. -->
+    <method name="ListNamespaces">
+      <arg name="app" type="s" direction="in"/>
+      <arg type="as" direction="out"/>
+    </method>
+    <!-- Apply (key, set, TOML text) edits atomically. Returns the revision and values. -->
+    <method name="Apply">
+      <arg name="namespace" type="s" direction="in"/>
+      <arg name="edits" type="a(sbs)" direction="in"/>
+      <arg name="app" type="s" direction="in"/>
+      <arg name="revision" type="t" direction="out"/>
+      <arg name="values" type="a{sv}" direction="out"/>
+    </method>
+    <!-- Copy a regular file, up to 64 MiB, as the user's copy of an asset. -->
+    <method name="WriteAsset">
+      <arg name="file" type="h" direction="in"/>
+      <arg name="namespace" type="s" direction="in"/>
+      <arg name="id" type="s" direction="in"/>
+      <arg name="app" type="s" direction="in"/>
+    </method>
+    <!-- Remove the user's copy of an asset. -->
+    <method name="ClearAsset">
+      <arg name="namespace" type="s" direction="in"/>
+      <arg name="id" type="s" direction="in"/>
+      <arg name="app" type="s" direction="in"/>
+    </method>
+    <!-- Open a namespace. A non-empty schema is the client's own. The subscription lasts while the returned descriptor is open. -->
+    <method name="Subscribe">
+      <arg name="namespace" type="s" direction="in"/>
+      <arg name="schema" type="s" direction="in"/>
+      <arg name="app" type="s" direction="in"/>
+      <arg name="subscription" type="h" direction="out"/>
+      <arg name="schema" type="s" direction="out"/>
+      <arg name="revision" type="t" direction="out"/>
+      <arg name="values" type="a{sv}" direction="out"/>
+      <arg name="assets" type="a(ssh)" direction="out"/>
+    </method>
+    <!-- The revision and every set value after a change, sent to subscribers. -->
+    <signal name="Changed">
+      <arg name="namespace" type="s"/>
+      <arg name="revision" type="t"/>
+      <arg name="values" type="a{sv}"/>
+    </signal>
+    <!-- An asset's new file, or none if it is unset. Sent to subscribers. -->
+    <signal name="AssetChanged">
+      <arg name="namespace" type="s"/>
+      <arg name="id" type="s"/>
+      <arg name="file" type="a(sh)"/>
+    </signal>
+  </interface>
+</node>

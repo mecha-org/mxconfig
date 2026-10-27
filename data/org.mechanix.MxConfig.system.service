@@ -1,0 +1,6 @@
+# Install as /usr/share/dbus-1/system-services/org.mechanix.MxConfig.service: starts the privileged service on first call.
+[D-BUS Service]
+Name=org.mechanix.MxConfig
+Exec=/usr/bin/mxconfigd --privileged
+User=root
+SystemdService=mxconfigd-privileged.service

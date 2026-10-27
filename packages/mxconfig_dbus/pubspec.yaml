@@ -1,0 +1,15 @@
+name: mxconfig_dbus
+description: Carries mxconfig's D-Bus traffic over a package:dbus client the app already has.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.6.0
+
+dependencies:
+  dbus: ">=0.7.14 <0.9.0"
+  mxconfig_dart:
+    path: ../mxconfig_dart
+
+dev_dependencies:
+  test: ^1.25.0

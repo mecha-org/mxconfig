@@ -1,0 +1,26 @@
+[package]
+name = "mxconfig"
+description = "Typed, versioned TOML settings for apps."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+mxconfig-macros = { path = "../mxconfig-macros" }
+mxconfig-schema = { path = "../mxconfig-schema" }
+toml.workspace = true
+toml_edit.workspace = true
+serde.workspace = true
+nix.workspace = true
+thiserror.workspace = true
+inotify.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+nix.workspace = true
+public-api = "0.52.2"
+rustdoc-json = "0.9.10"
+
+[lints]
+workspace = true

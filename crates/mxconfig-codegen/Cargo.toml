@@ -1,0 +1,26 @@
+[package]
+name = "mxconfig-codegen"
+description = "Generate typed Rust and Dart clients from an mxconfig schema."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "mxconfig_codegen"
+path = "src/lib.rs"
+
+[[bin]]
+name = "mxconfig-codegen"
+path = "src/main.rs"
+
+[dependencies]
+mxconfig-schema = { path = "../mxconfig-schema" }
+anyhow.workspace = true
+heck.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,8 @@
+# Install to /usr/lib/systemd/system/.
+[Unit]
+Description=mxconfig privileged settings service
+
+[Service]
+Type=dbus
+BusName=org.mechanix.MxConfig
+ExecStart=/usr/bin/mxconfigd --privileged

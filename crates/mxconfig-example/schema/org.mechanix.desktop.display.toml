@@ -1,0 +1,12 @@
+# An example shared schema. A desktop namespace is served by mxconfigd.
+
+namespace = "org.mechanix.desktop.display"
+version = 1
+
+[keys.brightness]
+type = "integer"
+default = 80
+label = "Brightness"
+description = "Screen brightness in percent."
+min = 5
+max = 100

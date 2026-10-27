@@ -1,0 +1,4 @@
+rust_input: crate::api
+rust_root: crates/mxconfig-ffi
+dart_output: packages/mxconfig_dart/lib/src/rust
+web: false
