@@ -11,7 +11,7 @@ use mxconfig::host::protocol::WRITE_ACTION;
 use mxconfig::host::protocol::{self, BUS_NAME, Entry, Failure, MAX_ASSET, OBJECT_PATH};
 use mxconfig::host::{Roots, Sandbox};
 use mxconfig::runtime::Drive;
-use mxconfig::{Access, Bus, Class, Edit, Outcome, Schema, Settings, Source, Ticket, Write};
+use mxconfig::{Access, Bus, Class, Edit, Outcome, Schema, Settings, Source};
 use tokio::io::unix::AsyncFd;
 use zbus::fdo;
 use zbus::message::Header;
@@ -60,7 +60,7 @@ fn entry_edit(entry: Entry) -> Reply<Edit> {
         protocol::decode(entry).map_err(|e| fail(Failure::Invalid, e.to_string()))?;
     Ok(match value {
         Some(value) => Edit::set(key, value),
-        None => Edit::remove(key),
+        None => Edit::clear(key),
     })
 }
 
@@ -436,19 +436,13 @@ impl Place {
 }
 
 impl Inner {
-    /// Send signals for `place`'s outcomes. Returns write `ticket`'s result.
-    async fn drain(
-        &self,
-        place: &Place,
-        ticket: Option<Ticket<Write>>,
-    ) -> Option<Result<(), mxconfig::Error>> {
+    /// Send signals for `place`'s outcomes. Returns why a write failed, if one did.
+    async fn drain(&self, place: &Place) -> Option<mxconfig::Error> {
         let (mut changed, mut assets) = (BTreeSet::new(), Vec::new());
-        let mut written = None;
+        let mut failed = None;
         for outcome in place.source.outcomes() {
-            if let Some(result) = ticket.and_then(|ticket| ticket.written(&outcome)) {
-                written = Some(result);
-            }
             match outcome {
+                Outcome::WriteFailed { error, .. } => failed = Some(error),
                 Outcome::Changed(change) => {
                     changed.insert(change.namespace);
                 }
@@ -468,21 +462,18 @@ impl Inner {
             self.emit(place, &namespace).await;
         }
         self.emit_assets(place, assets).await;
-        written
+        failed
     }
 
-    /// Start a write in `place`, then send its signals before replying.
-    async fn land(
-        &self,
-        place: &Place,
-        start: impl FnOnce() -> Result<Ticket<Write>, mxconfig::Error>,
-    ) -> Reply<()> {
-        // Hold the lock across the write so the drain sees its `Written`.
+    /// Write in `place`, then send its signals before replying.
+    async fn land(&self, place: &Place, write: impl FnOnce()) -> Reply<()> {
+        // Files are written at once, and the lock keeps other writes out until the drain.
         let _turn = self.draining.lock().await;
-        let ticket = start()?;
-        let written = self.drain(place, Some(ticket)).await;
-        let written = written.ok_or_else(|| fail(Failure::Other, "the write did not land"))?;
-        Ok(written?)
+        write();
+        match self.drain(place).await {
+            Some(e) => Err(e.into()),
+            None => Ok(()),
+        }
     }
 
     /// Send `namespace`'s current state to its subscribers in `place`.
@@ -565,7 +556,7 @@ fn watch_files(inner: Arc<Inner>, place: Arc<Place>) {
         while let Ok(n) = read(&fd, &mut buf).await {
             place.source.feed_inotify(&buf[..n]);
             let _turn = inner.draining.lock().await;
-            inner.drain(&place, None).await;
+            inner.drain(&place).await;
         }
     });
 }
@@ -706,7 +697,7 @@ impl Service {
     }
 
     /// Remove the user's copy of asset `id`.
-    async fn clear_asset(
+    async fn remove_asset(
         &self,
         #[zbus(header)] hdr: Header<'_>,
         namespace: String,
@@ -716,7 +707,7 @@ impl Service {
         let (place, settings) = self.open_to_write(&hdr, &app, &namespace).await?;
         settings.check_asset(&id)?;
         self.approve(&hdr, &namespace).await?;
-        self.inner.land(&place, || settings.clear_asset(&id)).await
+        self.inner.land(&place, || settings.remove_asset(&id)).await
     }
 
     /// Follow a namespace while the returned descriptor stays open, registering an app's own schema.

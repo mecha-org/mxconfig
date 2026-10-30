@@ -16,7 +16,6 @@
 import 'dart:io';
 
 import 'package:dbus/dbus.dart';
-import 'package:mxconfig_dart/mxconfig.dart';
 import 'package:mxconfig_dbus/mxconfig_dbus.dart';
 
 import 'generated/demo.dart';
@@ -50,14 +49,15 @@ Future<void> main(List<String> args) async {
     }
   });
 
-  // A write completes once it lands. Its change arrives above, like anyone else's.
-  try {
-    if (args case [final accent, ...]) await colors.setAccent(accent);
-    if (args case [_, final brightness]) {
-      await display.setBrightness(int.parse(brightness));
-    }
-  } on MxconfigException catch (e) {
-    print('not written: ${e.message}');
+  // A write's change arrives above, like anyone else's. A failure arrives here.
+  for (final settings in [demo.settings, display.settings]) {
+    settings
+        .watchWriteFailed()
+        .listen((f) => print('not written: ${f.error.message}'));
+  }
+  if (args case [final accent, ...]) colors.setAccent(accent);
+  if (args case [_, final brightness]) {
+    display.setBrightness(int.parse(brightness));
   }
 
   print('watching; press Ctrl-C to stop');

@@ -3,7 +3,7 @@
 use std::fs;
 
 use mxconfig::host::Roots;
-use mxconfig::{ErrorKind, Event, FromSettings, Outcome, Schema, Source, Value};
+use mxconfig::{ErrorKind, Event, FromSettings, Outcome, Schema, Source, State, Value};
 use mxconfig_example::{ColorsMode, Demo, DemoChange};
 use tempfile::TempDir;
 
@@ -59,7 +59,8 @@ fn an_app_handles_typed_events() {
     for outcome in source.outcomes() {
         match outcome.event::<Demo>() {
             Some(Event::Opened(opened)) => {
-                opened.colors().set_accent("#ff0000").unwrap();
+                opened.colors().set_accent("#ff0000");
+                opened.colors().set_scale(9.0);
                 demo = Some(opened);
             }
             Some(event) => events.push(event),
@@ -70,8 +71,14 @@ fn an_app_handles_typed_events() {
     for outcome in source.outcomes() {
         events.extend(outcome.event::<Demo>());
     }
+    // The accent landed. The scale was out of range, so it still holds its value.
     let changed = DemoChange::ColorsAccent("#ff0000".into());
-    assert!(matches!(&*events, [Event::Changed(c), Event::Written] if *c == changed));
+    let [Event::Changed(c), Event::WriteFailed { error, current }] = &*events else {
+        panic!("{events:?}")
+    };
+    assert_eq!(*c, changed);
+    assert_eq!(error.kind(), ErrorKind::Invalid, "{error}");
+    assert_eq!(current, &[DemoChange::ColorsScale(1.0)]);
 
     // Another namespace's outcomes are not this client's events.
     let other = Outcome::Detached {
@@ -101,41 +108,39 @@ fn an_app_writes_and_observes_change() {
     let dir = TempDir::new().unwrap();
     let (source, demo) = opened(&dir);
 
-    // `Written` reports success. The change arrives as a typed `Changed`.
-    let write = demo.colors().set_accent("#ff0000").unwrap();
-    let outcomes = source.outcomes();
-    outcomes
+    // The change arrives as a typed `Changed`.
+    demo.colors().set_accent("#ff0000");
+    let typed: Vec<DemoChange> = source
+        .outcomes()
         .iter()
-        .find_map(|o| write.written(o))
-        .unwrap()
-        .unwrap();
-    let typed: Vec<DemoChange> = outcomes
-        .iter()
-        .filter_map(Outcome::change::<Demo>)
+        .filter_map(|o| match o.event::<Demo>()? {
+            Event::Changed(change) => Some(change),
+            _ => None,
+        })
         .collect();
     assert_eq!(typed, vec![DemoChange::ColorsAccent("#ff0000".into())]);
     assert_eq!(demo.colors().accent(), "#ff0000");
     assert_eq!(demo.settings().revision(), 1);
 
-    demo.colors().set_mode(ColorsMode::Light).unwrap();
+    demo.colors().set_mode(ColorsMode::Light);
     assert_eq!(demo.colors().mode(), ColorsMode::Light);
     assert_eq!(ColorsMode::Light.as_str(), "light");
     assert_eq!(ColorsMode::parse("dark"), Some(ColorsMode::Dark));
     assert_eq!(ColorsMode::parse("sepia"), None);
 
-    demo.set_nickname("aux").unwrap();
+    demo.set_nickname("aux");
     assert_eq!(demo.nickname(), Some("aux".to_string()));
-    demo.clear_nickname().unwrap();
+    demo.clear_nickname();
     assert_eq!(demo.nickname(), None);
 
-    let refused = demo.colors().set_scale(9.0);
-    assert!(refused.is_err(), "out of range");
-    demo.set_verbose(true).unwrap();
+    demo.colors().set_scale(9.0);
+    assert_eq!(demo.colors().scale(), 1.0, "out of range");
+    demo.set_verbose(true);
     assert!(demo.verbose());
 
     // Datetimes are read and written as datetimes.
     let when: mxconfig::Datetime = "1979-05-27T07:32:00Z".parse().unwrap();
-    demo.set_last_seen(when).unwrap();
+    demo.set_last_seen(when);
     assert_eq!(demo.last_seen(), Some(when));
 
     // The typed client and the generic handle agree.
@@ -167,7 +172,7 @@ fn an_old_settings_file_migrates_on_open() {
         "the added key took the default"
     );
 
-    demo.colors().set_mode(ColorsMode::Light).unwrap();
+    demo.colors().set_mode(ColorsMode::Light);
     // A v2 handle holds the file, so v1 opens only once it is gone.
     let refused = in_dir(&dir).open_schema(Schema::parse(V1).unwrap());
     assert_eq!(refused.unwrap_err().kind(), ErrorKind::VersionConflict);
@@ -208,9 +213,18 @@ fn a_trimmed_client_carries_only_its_keys() {
     let _older = in_dir(&dir)
         .open_schema(Schema::parse(V1).unwrap())
         .unwrap();
-    let demo: trimmed::Demo = request(&in_dir(&dir)).unwrap();
-    assert_eq!(demo.settings().other_version(), Some(1));
+    let source = in_dir(&dir);
+    let demo: trimmed::Demo = request(&source).unwrap();
+    assert_eq!(demo.settings().state(), State::ReadOnly { holder: 1 });
     assert_eq!(demo.colors().accent(), "#7aa2f7");
-    let refused = demo.colors().set_accent("#ff0000").unwrap_err();
-    assert_eq!(refused.kind(), ErrorKind::VersionConflict, "{refused}");
+    demo.colors().set_accent("#ff0000");
+    let events: Vec<_> = source
+        .outcomes()
+        .iter()
+        .filter_map(Outcome::event::<trimmed::Demo>)
+        .collect();
+    let [Event::WriteFailed { error, .. }] = &*events else {
+        panic!("{events:?}")
+    };
+    assert_eq!(error.kind(), ErrorKind::VersionConflict, "{error}");
 }

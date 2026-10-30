@@ -54,29 +54,29 @@ void main() {
   test('the typed setters write, and enums carry the schema spelling',
       () async {
     final demo = await open();
-    await demo.colors.setMode(ColorsMode.light);
+    demo.colors.setMode(ColorsMode.light);
     expect(demo.colors.mode, ColorsMode.light);
     expect(ColorsMode.light.value, 'light');
     expect(ColorsMode.parse('sepia'), isNull);
 
-    await demo.setNickname('aux');
+    demo.setNickname('aux');
     expect(demo.nickname, 'aux');
-    await demo.clearNickname();
+    demo.clearNickname();
     expect(demo.nickname, isNull);
   });
 
   test('a datetime key writes and reads its TOML text', () async {
     final demo = await open();
     expect(demo.lastSeen, isNull);
-    await demo.setLastSeen('1979-05-27T07:32:00Z');
+    demo.setLastSeen('1979-05-27T07:32:00Z');
     expect(demo.lastSeen, '1979-05-27T07:32:00Z');
   });
 
   test('changes arrive typed, decoded to each key\'s own type', () async {
     final demo = await open();
     final seen = demo.changes().take(2).toList();
-    await demo.colors.setMode(ColorsMode.light);
-    await demo.setNickname('aux');
+    demo.colors.setMode(ColorsMode.light);
+    demo.setNickname('aux');
     final changes = await seen.timeout(const Duration(seconds: 5));
     expect(changes[0], isA<ColorsModeChange>());
     expect((changes[0] as ColorsModeChange).value, ColorsMode.light);

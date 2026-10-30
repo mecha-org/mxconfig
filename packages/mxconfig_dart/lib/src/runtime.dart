@@ -8,8 +8,8 @@ import 'rust/frb_generated.dart' show RustLib;
 
 /// Carries the D-Bus traffic of the process-wide source.
 abstract interface class Transport {
-  /// Start carrying [source]'s calls. Completes once its bus answered the first ones.
-  Future<void> carry(Driven source);
+  /// Start carrying [source]'s calls.
+  void carry(Driven source);
 
   /// Send the calls its source queued, and close the descriptors it released.
   void flush();
@@ -30,15 +30,10 @@ final transports = <Transport>[];
 /// The process-wide source, once created.
 Driven? _standard;
 
-/// Completes once every transport carrying the process-wide source has answered its first calls.
-Future<void> carried = Future.value();
-
 /// Carry the process-wide source with [transport], now or once it exists.
 void attach(Transport transport) {
   transports.add(transport);
-  if (_standard case final standard?) {
-    carried = Future.wait([carried, transport.carry(standard)]);
-  }
+  if (_standard case final standard?) transport.carry(standard);
 }
 
 /// Stop flushing through [transport].
@@ -47,7 +42,9 @@ void detach(Transport transport) => transports.remove(transport);
 /// Make [source] the process-wide source, carried by every transport.
 void register(Driven source) {
   _standard = source;
-  carried = Future.wait([for (final t in transports) t.carry(source)]);
+  for (final transport in transports) {
+    transport.carry(source);
+  }
 }
 
 /// The bridge initialization, shared by all callers.

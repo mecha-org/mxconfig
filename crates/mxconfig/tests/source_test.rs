@@ -15,8 +15,8 @@ use mxconfig::runtime::Drive;
 use mxconfig::runtime::Event;
 use mxconfig::runtime::wire::{Arg, Call};
 use mxconfig::{Bus, Change, ErrorKind};
-use mxconfig::{Detach, Edit, Error, FromSettings, Namespace, Origin, Outcome, Settings, Write};
-use mxconfig::{Source, Ticket, Value};
+use mxconfig::{Detach, Edit, Error, FromSettings, Namespace, Origin, Outcome, Settings};
+use mxconfig::{Source, State, Ticket, Value};
 
 const NS: &str = "org.mechanix.demo";
 
@@ -35,6 +35,7 @@ description = "d"
 "#;
 
 /// A hand-written typed client, like a generated one.
+#[derive(Debug)]
 struct Demo(Settings);
 
 #[derive(Debug, PartialEq)]
@@ -112,12 +113,26 @@ fn source(tmp: &std::path::Path, schema: &str) -> (Source, Roots) {
     (Source::with_roots(roots.clone()), roots)
 }
 
-/// The result of write `ticket` among `outcomes`.
-fn written(outcomes: &[Outcome], ticket: Ticket<Write>) -> Result<(), Error> {
-    outcomes
-        .iter()
-        .find_map(|o| ticket.written(o))
-        .expect("a Written outcome")
+/// Why a write among `outcomes` failed, if one did.
+fn write_error(outcomes: &[Outcome]) -> Option<Error> {
+    outcomes.iter().find_map(|o| match o {
+        Outcome::WriteFailed { error, .. } => Some(error.clone()),
+        _ => None,
+    })
+}
+
+/// The events of `Demo` among `outcomes`.
+fn events(outcomes: &[Outcome]) -> Vec<mxconfig::Event<Demo>> {
+    outcomes.iter().filter_map(Outcome::event::<Demo>).collect()
+}
+
+/// The typed changes of `Demo` among `outcomes`.
+fn changes(outcomes: &[Outcome]) -> Vec<DemoChange> {
+    let changed = |event| match event {
+        mxconfig::Event::Changed(change) => Some(change),
+        _ => None,
+    };
+    events(outcomes).into_iter().filter_map(changed).collect()
 }
 
 #[test]
@@ -127,19 +142,57 @@ fn a_local_open_and_write_complete_in_the_same_turn() {
     let demo = opened(&source, source.request::<Demo>()).unwrap();
     assert_eq!(demo.0.get("level"), Some(Value::Integer(1)));
 
-    let write = demo.0.write(&[Edit::set("level", 5)]).unwrap();
-    let outcomes = source.outcomes();
-    // `Written` only reports success. The change arrives as `Changed`.
-    written(&outcomes, write).unwrap();
-    let typed: Vec<DemoChange> = outcomes
-        .iter()
-        .filter_map(Outcome::change::<Demo>)
-        .collect();
-    assert_eq!(typed, vec![DemoChange::Level(5)]);
+    demo.0.write(&[Edit::set("level", 5)]);
+    assert_eq!(changes(&source.outcomes()), vec![DemoChange::Level(5)]);
+}
 
-    // A bad value is refused before anything is queued.
-    assert!(demo.0.write(&[Edit::set("level", "high")]).is_err());
-    assert!(source.outcomes().is_empty());
+#[test]
+fn a_bad_value_fails_with_what_the_key_still_holds() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (source, _) = source(tmp.path(), WITH_ASSET);
+    let demo = opened(&source, source.request::<Demo>()).unwrap();
+    demo.0.write(&[Edit::set("level", 5)]);
+    drop(source.outcomes());
+
+    demo.0.write(&[Edit::set("level", "high")]);
+    let events = events(&source.outcomes());
+    let [mxconfig::Event::WriteFailed { error, current }] = &*events else {
+        panic!("{events:?}")
+    };
+    assert_eq!(error.kind(), ErrorKind::Invalid, "{error}");
+    assert_eq!(current, &[DemoChange::Level(5)]);
+    assert_eq!(demo.0.get("level"), Some(Value::Integer(5)));
+}
+
+#[test]
+fn a_failed_asset_write_names_the_asset() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (source, _) = source(tmp.path(), WITH_ASSET);
+    let demo = opened(&source, source.request::<Demo>()).unwrap();
+    demo.0.write_asset("missing", b"x");
+    demo.0.write_asset("layout", b"rows: []\n");
+    let events = events(&source.outcomes());
+    let [
+        mxconfig::Event::WriteFailed { current, .. },
+        mxconfig::Event::Changed(changed),
+    ] = &*events
+    else {
+        panic!("{events:?}")
+    };
+    assert!(current.is_empty(), "an unknown asset has no typed change");
+    assert_eq!(*changed, DemoChange::AssetLayout);
+}
+
+#[test]
+fn a_write_that_changes_nothing_raises_nothing() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (source, _) = source(tmp.path(), WITH_ASSET);
+    let demo = opened(&source, source.request::<Demo>()).unwrap();
+    demo.0.write(&[Edit::set("level", 5)]);
+    drop(source.outcomes());
+
+    demo.0.write(&[Edit::set("level", 5)]);
+    assert!(events(&source.outcomes()).is_empty());
 }
 
 #[test]
@@ -155,11 +208,7 @@ fn file_and_asset_edits_arrive_as_outcomes() {
 
     // A runtime with its own watcher reports the changed path.
     source.touched(&dir.join("config.toml"));
-    let typed: Vec<DemoChange> = source
-        .outcomes()
-        .iter()
-        .filter_map(Outcome::change::<Demo>)
-        .collect();
+    let typed = changes(&source.outcomes());
     assert!(typed.contains(&DemoChange::Level(9)), "{typed:?}");
     assert!(typed.contains(&DemoChange::AssetLayout), "{typed:?}");
 
@@ -174,7 +223,7 @@ fn opening_twice_shares_one_handle() {
     let (source, _) = source(tmp.path(), WITH_ASSET);
     let first = opened(&source, source.request::<Demo>()).unwrap();
     let second = opened(&source, source.request::<Demo>()).unwrap();
-    first.0.write(&[Edit::set("level", 3)]).unwrap();
+    first.0.write(&[Edit::set("level", 3)]);
     assert_eq!(second.0.get("level"), Some(Value::Integer(3)));
     // One handle, so one Changed per change.
     let changed = source
@@ -423,7 +472,7 @@ fn a_daemon_open_completes_only_once_answered() {
     assert_eq!(members(&asked), ["Subscribe"]);
     assert_eq!(schema(&asked[0]), "");
     let settings = opened(&source, ticket).unwrap();
-    assert!(settings.from_daemon());
+    assert_eq!(settings.state(), State::Live);
     assert_eq!(
         settings.get("colors.accent"),
         Some(Value::String("#123456".into()))
@@ -440,9 +489,7 @@ fn a_daemon_write_lands_only_once_answered() {
     let (source, _) = source(tmp.path(), &remote(SCHEMA));
     let (mut daemon, mut revision) = (BTreeMap::new(), 0);
     let settings = serve_open(&source, &mut daemon, &mut revision);
-    let write = settings
-        .write(&[Edit::set("colors.corner_radius", 12)])
-        .unwrap();
+    settings.write(&[Edit::set("colors.corner_radius", 12)]);
     assert!(source.outcomes().is_empty());
     assert_eq!(
         settings.get("colors.corner_radius"),
@@ -451,7 +498,7 @@ fn a_daemon_write_lands_only_once_answered() {
     );
     serve(&source, &mut daemon, &mut revision);
     let outcomes = source.outcomes();
-    written(&outcomes, write).unwrap();
+    assert!(write_error(&outcomes).is_none());
     let changed = outcomes
         .iter()
         .filter(|o| matches!(o, Outcome::Changed(_)))
@@ -469,12 +516,10 @@ fn a_refused_daemon_write_changes_nothing() {
     let tmp = tempfile::tempdir().unwrap();
     let (source, _) = source(tmp.path(), &remote(SCHEMA));
     let settings = open_with_daemon(&source);
-    let write = settings
-        .write(&[Edit::set("colors.corner_radius", 20)])
-        .unwrap();
+    settings.write(&[Edit::set("colors.corner_radius", 20)]);
     let id = source.take_calls(Bus::Session)[0].id;
     source.deliver(Bus::Session, failed(id, ACCESS_DENIED));
-    let refused = written(&source.outcomes(), write).unwrap_err();
+    let refused = write_error(&source.outcomes()).expect("refused");
     assert_eq!(refused.kind(), ErrorKind::Denied);
     assert_eq!(
         settings.get("colors.corner_radius"),
@@ -489,7 +534,7 @@ fn a_write_reply_ahead_of_the_held_state_heals_a_lost_signal() {
     let (source, _) = source(tmp.path(), &remote(SCHEMA));
     let (mut daemon, mut revision) = (BTreeMap::new(), 0);
     let settings = serve_open(&source, &mut daemon, &mut revision);
-    let write = settings.write(&[Edit::set("verbose", true)]).unwrap();
+    settings.write(&[Edit::set("verbose", true)]);
     let id = source.take_calls(Bus::Session)[0].id;
     daemon.insert("verbose".into(), Value::Boolean(true));
     revision += 2;
@@ -502,7 +547,7 @@ fn a_write_reply_ahead_of_the_held_state_heals_a_lost_signal() {
             .iter()
             .any(|o| matches!(o, Outcome::Changed(c) if c.key == "verbose"))
     );
-    written(&outcomes, write).unwrap();
+    assert!(write_error(&outcomes).is_none());
     assert_eq!(settings.get("verbose"), Some(Value::Boolean(true)));
 }
 
@@ -660,14 +705,10 @@ fn closing_the_bus_detaches_and_ends_the_subscriptions() {
 
     // A `Subscribe` on the wire, a write on the wire, and a write never sent.
     let in_flight = source.request_namespace("org.mechanix.other");
-    let write = settings
-        .write(&[Edit::set("colors.corner_radius", 5)])
-        .unwrap();
+    settings.write(&[Edit::set("colors.corner_radius", 5)]);
     let calls = source.take_calls(Bus::Session);
     assert_eq!(members(&calls), ["Subscribe", "Apply"]);
-    let unsent = settings
-        .write(&[Edit::set("colors.corner_radius", 6)])
-        .unwrap();
+    settings.write(&[Edit::set("colors.corner_radius", 6)]);
 
     source.close(Bus::Session);
     assert!(ended(&watched), "the handle let go of its subscription");
@@ -678,12 +719,17 @@ fn closing_the_bus_detaches_and_ends_the_subscriptions() {
     let outcomes = source.outcomes();
     let closed = |o: &Outcome| matches!(o, Outcome::Detached { namespace, cause: Detach::Closed } if namespace == NS);
     assert!(outcomes.iter().any(closed), "{outcomes:?}");
-    let kind = |ticket: Ticket<Write>| written(&outcomes, ticket).unwrap_err().kind();
-    assert_eq!(kind(write), ErrorKind::Unconfirmed, "it may have landed");
+    let kinds: Vec<ErrorKind> = outcomes
+        .iter()
+        .filter_map(|o| match o {
+            Outcome::WriteFailed { error, .. } => Some(error.kind()),
+            _ => None,
+        })
+        .collect();
+    // The sent write may have landed. The unsent one never left.
     assert_eq!(
-        kind(unsent),
-        ErrorKind::Unreachable(Bus::Session),
-        "it never left"
+        kinds,
+        [ErrorKind::Unconfirmed, ErrorKind::Unreachable(Bus::Session)]
     );
     assert!(
         outcomes
@@ -702,11 +748,11 @@ fn closing_the_bus_detaches_and_ends_the_subscriptions() {
 
     // It keeps its values but refuses writes and reopening.
     assert_eq!(settings.get("colors.corner_radius"), None);
-    let e = settings
-        .write(&[Edit::set("colors.corner_radius", 7)])
-        .unwrap_err();
+    settings.write(&[Edit::set("colors.corner_radius", 7)]);
+    let e = write_error(&source.outcomes()).expect("refused");
     assert_eq!(e.kind(), ErrorKind::Detached);
     assert!(e.to_string().contains("transport was closed"), "{e}");
+    assert_eq!(settings.state(), State::Detached(Detach::Closed));
     reach(&source);
     let again = source.request_namespace(NS);
     assert_eq!(
@@ -729,9 +775,7 @@ fn a_write_that_times_out_is_unconfirmed() {
     let settings = subscribe_with(&source, sent);
 
     let in_flight = source.request_namespace("org.mechanix.other");
-    let write = settings
-        .write(&[Edit::set("colors.corner_radius", 5)])
-        .unwrap();
+    settings.write(&[Edit::set("colors.corner_radius", 5)]);
     let calls = source.take_calls(Bus::Session);
     assert_eq!(members(&calls), ["Subscribe", "Apply"]);
     for call in &calls {
@@ -739,7 +783,7 @@ fn a_write_that_times_out_is_unconfirmed() {
     }
 
     let outcomes = source.outcomes();
-    let refused = written(&outcomes, write).unwrap_err();
+    let refused = write_error(&outcomes).expect("refused");
     assert_eq!(refused.kind(), ErrorKind::Unconfirmed);
     let opened = outcomes.iter().find_map(|o| in_flight.opened(o)).unwrap();
     assert_eq!(
@@ -875,12 +919,7 @@ fn a_daemon_served_asset_reads_its_fd_and_follows_the_daemon() {
     source.deliver(Bus::Session, asset_changed(":1.66", Some(&second)));
     assert!(source.outcomes().is_empty(), "only the daemon is heard");
     source.deliver(Bus::Session, asset_changed(DAEMON, Some(&second)));
-    let changes: Vec<_> = source
-        .outcomes()
-        .iter()
-        .filter_map(mxconfig::Outcome::change::<Demo>)
-        .collect();
-    assert_eq!(changes, [DemoChange::AssetLayout]);
+    assert_eq!(changes(&source.outcomes()), [DemoChange::AssetLayout]);
     assert_eq!(demo.0.asset("layout").unwrap().text().unwrap(), "two");
 
     source.deliver(Bus::Session, asset_changed(DAEMON, None));
@@ -909,12 +948,7 @@ fn a_resync_reports_every_served_asset() {
     fs::write(&file, "two").unwrap();
     let reply = subscribed(WITH_ASSET, 1, &BTreeMap::new(), &[("layout", &file)]);
     source.deliver(Bus::Session, answer(id, reply));
-    let changes: Vec<_> = source
-        .outcomes()
-        .iter()
-        .filter_map(mxconfig::Outcome::change::<Demo>)
-        .collect();
-    assert_eq!(changes, [DemoChange::AssetLayout]);
+    assert_eq!(changes(&source.outcomes()), [DemoChange::AssetLayout]);
     assert_eq!(demo.0.asset("layout").unwrap().text().unwrap(), "two");
 }
 
@@ -938,49 +972,57 @@ fn asset_write(source: &Source) -> (u64, Option<Vec<u8>>) {
             file.read_to_end(&mut bytes).unwrap();
             Some(bytes)
         }
-        ("ClearAsset", [_, Arg::Str(asset), _]) if asset == "layout" => None,
+        ("RemoveAsset", [_, Arg::Str(asset), _]) if asset == "layout" => None,
         _ => panic!("{call:?}"),
     };
     (call.id, bytes)
 }
 
-/// Daemon asset writes send a file. A clear sends none.
+/// Daemon asset writes send a file. A removal sends none.
 #[test]
 fn a_daemon_asset_write_sends_a_file_and_lands_once_answered() {
     let tmp = tempfile::tempdir().unwrap();
     let source = Source::with_roots(Roots::under(tmp.path()));
     let demo = open_remote(&source);
 
-    let ticket = demo.0.write_asset("layout", b"bytes").unwrap();
+    demo.0.write_asset("layout", b"bytes");
     let (id, file) = asset_write(&source);
     assert_eq!(file.unwrap(), b"bytes");
     assert!(source.outcomes().is_empty(), "nothing before the answer");
     source.deliver(Bus::Session, answer(id, Vec::new()));
-    written(&source.outcomes(), ticket).unwrap();
+    assert!(write_error(&source.outcomes()).is_none());
 
     let picked = tmp.path().join("picked.yaml");
     fs::write(&picked, "from a portal").unwrap();
     let fd = std::os::fd::OwnedFd::from(fs::File::open(&picked).unwrap());
-    demo.0.write_asset_from("layout", fd).unwrap();
+    demo.0.write_asset_from("layout", fd);
     let (_, file) = asset_write(&source);
     assert_eq!(file.unwrap(), b"from a portal");
 
-    demo.0.clear_asset("layout").unwrap();
+    demo.0.remove_asset("layout");
     let (id, file) = asset_write(&source);
-    assert!(file.is_none(), "a clear sends no file");
+    assert!(file.is_none(), "a removal sends no file");
     source.deliver(Bus::Session, failed(id, ACCESS_DENIED));
     let failed = source.outcomes().into_iter().find_map(|o| match o {
         Outcome::WriteFailed {
-            namespace, error, ..
-        } => Some((namespace, error)),
+            namespace,
+            error,
+            asset,
+            ..
+        } => Some((namespace, error, asset)),
         _ => None,
     });
-    let (namespace, error) = failed.expect("answered");
+    let (namespace, error, asset) = failed.expect("answered");
     assert_eq!(
         namespace, "org.mechanix.demo",
         "a write names its namespace"
     );
     assert_eq!(error.kind(), ErrorKind::Denied);
+    assert_eq!(
+        asset.as_deref(),
+        Some("layout"),
+        "a failure names the asset it touched"
+    );
 }
 
 /// A local write from a file copies it into the user layer.
@@ -992,7 +1034,7 @@ fn a_local_asset_write_from_a_file_copies_it() {
     let picked = tmp.path().join("picked.yaml");
     fs::write(&picked, "chosen").unwrap();
     let fd = std::os::fd::OwnedFd::from(fs::File::open(&picked).unwrap());
-    demo.0.write_asset_from("layout", fd).unwrap();
+    demo.0.write_asset_from("layout", fd);
     fs::remove_file(&picked).unwrap();
     let asset = demo.0.asset("layout").expect("the user's copy");
     assert_eq!(asset.text().unwrap(), "chosen");
@@ -1120,7 +1162,6 @@ fn an_open_falls_back_to_the_daemon_and_says_so() {
     assert!(source.outcomes().is_empty(), "waiting on the daemon");
     serve(&source, &mut BTreeMap::new(), &mut 0);
     let settings = opened(&source, ticket).unwrap();
-    assert!(settings.from_daemon());
     let notes = settings.diagnostics();
     let said = |d: &mxconfig::Diagnostic| d.message().starts_with("local files failed");
     assert!(notes.iter().any(said), "{notes:?}");
@@ -1131,8 +1172,9 @@ fn an_open_falls_back_to_the_daemon_and_says_so() {
 fn a_daemon_preference_falls_back_to_files_when_none_answers() {
     let tmp = tempfile::tempdir().unwrap();
     let (source, _) = source(tmp.path(), &prefers_daemon());
+    // No bus, so files at once.
     let first = open(&source, NS).unwrap();
-    assert!(!first.from_daemon(), "no bus, so files at once");
+    assert!(source.take_calls(Bus::Session).is_empty());
     drop(first);
 
     // A bus, but no daemon owns the name.
@@ -1142,7 +1184,6 @@ fn a_daemon_preference_falls_back_to_files_when_none_answers() {
     let unknown = "org.freedesktop.DBus.Error.ServiceUnknown";
     source.deliver(Bus::Session, failed(call.id, unknown));
     let settings = opened(&source, ticket).unwrap();
-    assert!(!settings.from_daemon());
     let notes = settings.diagnostics();
     let said = |d: &mxconfig::Diagnostic| d.message().starts_with("mxconfigd failed");
     assert!(notes.iter().any(said), "{notes:?}");
@@ -1275,7 +1316,8 @@ fn a_restart_onto_another_version_detaches_the_handle() {
     assert_eq!(demo.0.get("level"), Some(Value::Integer(4)));
     let said = |d: &mxconfig::Diagnostic| d.message().contains("detached");
     assert!(demo.0.diagnostics().iter().any(said));
-    let refused = demo.0.write(&[Edit::set("level", 5)]).unwrap_err();
+    demo.0.write(&[Edit::set("level", 5)]);
+    let refused = write_error(&source.outcomes()).expect("refused");
     assert_eq!(refused.kind(), ErrorKind::Detached, "{refused}");
     assert!(
         source.take_calls(Bus::Session).is_empty(),
@@ -1310,10 +1352,10 @@ fn a_refused_resubscribe_detaches_the_handle() {
     source.deliver(Bus::Session, failed(id, VERSION_CONFLICT));
     let detached = |o: &Outcome| matches!(o, Outcome::Detached { .. });
     assert!(source.outcomes().iter().any(detached));
-    assert_eq!(
-        demo.0.write(&[Edit::set("level", 5)]).unwrap_err().kind(),
-        ErrorKind::Detached
-    );
+    demo.0.write(&[Edit::set("level", 5)]);
+    let refused = write_error(&source.outcomes()).expect("refused");
+    assert_eq!(refused.kind(), ErrorKind::Detached);
+    assert_eq!(demo.0.state(), State::Detached(Detach::Moved));
 }
 
 /// A client without a schema of its own reads with the one the daemon serves.
@@ -1359,9 +1401,10 @@ fn a_client_at_another_version_reads_untouched_names_only() {
     let reply = subscribed(SCHEMA, 1, &one("verbose", Value::Boolean(true)), &[]);
     source.deliver(Bus::Session, answer(id, reply));
     let settings = opened(&source, ticket).unwrap();
-    assert_eq!(settings.other_version(), Some(2));
+    assert_eq!(settings.state(), State::ReadOnly { holder: 2 });
     assert_eq!(settings.get("verbose"), Some(Value::Boolean(true)));
-    let refused = settings.write(&[Edit::set("verbose", false)]).unwrap_err();
+    settings.write(&[Edit::set("verbose", false)]);
+    let refused = write_error(&source.outcomes()).expect("refused");
     assert_eq!(refused.kind(), ErrorKind::VersionConflict, "{refused}");
     assert!(
         source.take_calls(Bus::Session).is_empty(),

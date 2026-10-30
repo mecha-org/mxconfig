@@ -7,16 +7,13 @@ import '../api.dart';
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MxSource>>
 abstract class MxSource implements RustOpaqueInterface {
   /// A source over this system's roots.
   static MxSource create() =>
       RustLib.instance.api.crateApiSourceMxSourceCreate();
-
-  /// Whether `bus` is carried and its daemon running.
-  DaemonPresence daemon({required String bus});
 
   /// Carry `schema` for `namespace`: the one this client was built with.
   void embed({required String namespace, required String schema});
@@ -86,19 +83,6 @@ abstract class MxTransport implements RustOpaqueInterface {
 
   /// The ids of kept descriptors on `bus` that Dart should close now.
   Uint64List takeReleased({required String bus});
-}
-
-/// What a source knows of a bus's daemon.
-enum DaemonPresence {
-  /// No transport carries the bus.
-  noBus,
-
-  /// The bus is carried, but no daemon owns its name yet.
-  noDaemon,
-
-  /// The daemon is running.
-  running,
-  ;
 }
 
 /// Why a handle stopped following its namespace.
@@ -241,6 +225,9 @@ class MxOutcome {
 
   /// The new problems, for a `Diagnosed` outcome.
   final List<Diagnostic> diagnostics;
+
+  /// What each key a failed write touched holds now.
+  final List<Change> current;
   final String namespace;
   final String? asset;
 
@@ -252,6 +239,7 @@ class MxOutcome {
     this.error,
     this.detach,
     required this.diagnostics,
+    required this.current,
     required this.namespace,
     this.asset,
   });
@@ -265,6 +253,7 @@ class MxOutcome {
       error.hashCode ^
       detach.hashCode ^
       diagnostics.hashCode ^
+      current.hashCode ^
       namespace.hashCode ^
       asset.hashCode;
 
@@ -280,6 +269,7 @@ class MxOutcome {
           error == other.error &&
           detach == other.detach &&
           diagnostics == other.diagnostics &&
+          current == other.current &&
           namespace == other.namespace &&
           asset == other.asset;
 }
@@ -287,7 +277,9 @@ class MxOutcome {
 /// The kind of an [`MxOutcome`].
 enum MxOutcomeKind {
   opened,
-  written,
+
+  /// A write failed, with `error`. `current` and `asset` say what it touched.
+  writeFailed,
   changed,
   asset,
 

@@ -56,16 +56,14 @@ use mxconfig::{Event, Source};
 let source = Source::new();
 source.request::<Demo>();
 
-fn on_demo(event: Event<Demo>) -> Result<(), mxconfig::Error> {
+fn on_demo(event: Event<Demo>) {
     match event {
-        Event::Opened(demo) => {
-            demo.colors().set_accent("#ff0000")?;
-        }
+        Event::Opened(demo) => demo.colors().set_accent("#ff0000"),
         Event::Changed(DemoChange::ColorsAccent(accent)) => println!("accent is now {accent}"),
-        Event::OpenFailed(e) | Event::WriteFailed(e) => return Err(e),
+        Event::WriteFailed { error, .. } => eprintln!("not written: {error}"),
+        Event::OpenFailed(error) => eprintln!("not opened: {error}"),
         _ => {}
     }
-    Ok(())
 }
 ```
 
@@ -84,7 +82,7 @@ import 'generated/demo.dart';
 
 final demo = await Demo.open();
 print(demo.colors.accent);
-await demo.colors.setAccent('#ff0000');
+demo.colors.setAccent('#ff0000');
 demo.changes().listen(print);
 ```
 

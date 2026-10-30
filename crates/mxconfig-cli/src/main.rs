@@ -7,7 +7,7 @@ use anyhow::{Context, Result, anyhow, bail};
 use clap::{Parser, Subcommand};
 use mxconfig::host::{Roots, Sandbox};
 use mxconfig::{Diagnostic, Edit, KeySchema, KeyType, Manifest, Origin, Schema};
-use mxconfig::{Settings, Source, Value, value};
+use mxconfig::{Outcome, Settings, Source, Value, value};
 
 #[derive(Parser)]
 #[command(
@@ -99,7 +99,7 @@ fn run() -> Result<()> {
             let value = value_of(&settings, &key, &value)?;
             write(&settings, Edit::set(key, value))?;
         }
-        Command::Unset { namespace, key } => write(&load(&namespace)?, Edit::remove(key))?,
+        Command::Unset { namespace, key } => write(&load(&namespace)?, Edit::clear(key))?,
     }
     Ok(())
 }
@@ -121,10 +121,14 @@ fn value_of(settings: &Settings, key: &str, text: &str) -> Result<Value> {
 
 /// Write `edit` to the user's file, as the app itself would.
 fn write(settings: &Settings, edit: Edit) -> Result<()> {
-    let ticket = settings.write(&[edit])?;
-    let outcomes = settings.source().outcomes();
-    let written = outcomes.iter().find_map(|outcome| ticket.written(outcome));
-    Ok(written.expect("a file write finishes at once")?)
+    // A file write finishes at once, so a failure is already among the outcomes.
+    settings.write(&[edit]);
+    for outcome in settings.source().outcomes() {
+        if let Outcome::WriteFailed { error, .. } = outcome {
+            return Err(error.into());
+        }
+    }
+    Ok(())
 }
 
 /// Open `namespace` from the host's files, else from its Flatpak app's.

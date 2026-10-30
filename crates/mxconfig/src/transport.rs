@@ -175,18 +175,6 @@ pub enum Bus {
     System,
 }
 
-/// What a source knows of a bus's daemon.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[non_exhaustive]
-pub enum Presence {
-    /// The runtime doesn't carry the bus.
-    NoBus,
-    /// The bus is carried, but no daemon owns its name yet.
-    NoDaemon,
-    /// The daemon is running.
-    Running,
-}
-
 impl Bus {
     /// The bus whose daemon serves namespaces of `class`.
     pub fn serving(class: Class) -> Bus {

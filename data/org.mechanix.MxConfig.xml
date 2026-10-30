@@ -25,7 +25,7 @@
       <arg name="app" type="s" direction="in"/>
     </method>
     <!-- Remove the user's copy of an asset. -->
-    <method name="ClearAsset">
+    <method name="RemoveAsset">
       <arg name="namespace" type="s" direction="in"/>
       <arg name="id" type="s" direction="in"/>
       <arg name="app" type="s" direction="in"/>

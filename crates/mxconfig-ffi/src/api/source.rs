@@ -6,7 +6,7 @@ use mxconfig::host::Roots;
 use mxconfig::runtime::Drive;
 use mxconfig::runtime::Event;
 use mxconfig::runtime::wire;
-use mxconfig::{Presence, Schema, Source};
+use mxconfig::{Schema, Source};
 
 use super::{Change, Diagnostic, MxSettings, MxconfigException};
 use crate::convert::{arg, mx_call, mx_outcome};
@@ -71,24 +71,14 @@ pub struct MxRule {
 #[derive(Debug)]
 pub enum MxOutcomeKind {
     Opened,
-    Written,
+    /// A write failed, with `error`. `current` and `asset` say what it touched.
+    WriteFailed,
     Changed,
     Asset,
     /// The namespace's handle stopped following it. `detach` says why.
     Detached,
     /// The namespace has new problems, in `diagnostics`. Log them.
     Diagnosed,
-}
-
-/// What a source knows of a bus's daemon.
-#[derive(Debug)]
-pub enum DaemonPresence {
-    /// No transport carries the bus.
-    NoBus,
-    /// The bus is carried, but no daemon owns its name yet.
-    NoDaemon,
-    /// The daemon is running.
-    Running,
 }
 
 /// Why a handle stopped following its namespace.
@@ -113,6 +103,8 @@ pub struct MxOutcome {
     pub detach: Option<DetachCause>,
     /// The new problems, for a `Diagnosed` outcome.
     pub diagnostics: Vec<Diagnostic>,
+    /// What each key a failed write touched holds now.
+    pub current: Vec<Change>,
     pub namespace: String,
     pub asset: Option<String>,
 }
@@ -143,17 +135,6 @@ impl MxSource {
         MxSource {
             inner: Source::with_roots(roots),
         }
-    }
-
-    /// Whether `bus` is carried and its daemon running.
-    #[frb(sync)]
-    pub fn daemon(&self, bus: String) -> Result<DaemonPresence, MxconfigException> {
-        Ok(match self.inner.daemon(bus.parse()?) {
-            Presence::NoBus => DaemonPresence::NoBus,
-            Presence::Running => DaemonPresence::Running,
-            // A state added later reads as no daemon.
-            _ => DaemonPresence::NoDaemon,
-        })
     }
 
     /// Carry `schema` for `namespace`: the one this client was built with.

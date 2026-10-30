@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use common::{ACCESS_DENIED, Bus, DESKTOP, DISPLAY, DISPLAY_SCHEMA, INVALID_ARGS, NAMESPACE, TOOL};
 use common::{UNKNOWN_OBJECT, ZbusLink, connect, next_changed, serve, start_bus, subscribe, text};
-use common::{apply, caller, clear_asset, error_name, hear, hold_as, link, list, open, put};
+use common::{apply, caller, error_name, hear, hold_as, link, list, open, put, remove_asset};
 use common::{read, rename_edge, shared_file, within, write_asset, written};
 use futures_util::{Stream, StreamExt};
 use mxconfig::Bus as Daemon;
@@ -315,9 +315,9 @@ async fn without_polkit_a_write_is_access_denied_without_hanging() {
     // A client sees a denial, not a fallback or a hang.
     let (source, mut link) = system_client(&rig.bus, &rig.roots).await;
     let settings = open(&source, &mut link, DISPLAY).await;
-    let ticket = settings.write(&[Edit::set("brightness", 90)]).unwrap();
+    settings.write(&[Edit::set("brightness", 90)]);
     within(link.settle()).await;
-    let written = written(&source, ticket);
+    let written = written(&source);
     assert!(
         matches!(&written, Err(e) if e.kind() == ErrorKind::Denied),
         "{written:?}"
@@ -395,11 +395,12 @@ async fn a_system_client_refuses_managed_keys_locally() {
 
     let batches = [
         vec![Edit::set("panel", "amoled")],
-        vec![Edit::remove("panel")],
+        vec![Edit::clear("panel")],
         vec![Edit::set("brightness", 20), Edit::set("panel", "amoled")],
     ];
     for edits in &batches {
-        let refused = settings.write(edits).unwrap_err();
+        settings.write(edits);
+        let refused = written(&source).unwrap_err();
         assert_eq!(refused.kind(), ErrorKind::Denied, "{refused}");
     }
     assert!(source.take_calls(Daemon::System).is_empty(), "nothing sent");
@@ -408,16 +409,16 @@ async fn a_system_client_refuses_managed_keys_locally() {
     assert_eq!(read(&file).as_deref(), Some("panel = \"lcd\"\n"));
 
     // An unmanaged write from the same client still lands.
-    let ticket = settings.write(&[Edit::set("brightness", 20)]).unwrap();
+    settings.write(&[Edit::set("brightness", 20)]);
     within(link.settle()).await;
-    written(&source, ticket).unwrap();
+    written(&source).unwrap();
     assert_eq!(settings.get("brightness"), Some(Value::Integer(20)));
     assert_eq!(settings.get("panel"), Some(Value::String("lcd".into())));
     let admin = read(&file).unwrap();
     assert!(admin.contains("brightness = 20") && admin.contains("panel = \"lcd\""));
 }
 
-/// `WriteAsset` and `ClearAsset` on a privileged namespace are refused.
+/// `WriteAsset` and `RemoveAsset` on a privileged namespace are refused.
 #[tokio::test(flavor = "multi_thread")]
 async fn asset_writes_to_a_privileged_namespace_are_refused() {
     let Some(rig) = rig(true).await else {
@@ -433,7 +434,7 @@ async fn asset_writes_to_a_privileged_namespace_are_refused() {
 
     let sent = write_asset(&proxy, rig.tmp.path(), DISPLAY, "calibration", "mine").await;
     assert_eq!(error_name(sent), ACCESS_DENIED);
-    let sent = clear_asset(&proxy, DISPLAY, "calibration").await;
+    let sent = remove_asset(&proxy, DISPLAY, "calibration").await;
     assert_eq!(error_name(sent), ACCESS_DENIED);
 
     let admin = shared_file(rig.roots.admin_dir.as_ref(), DISPLAY);
@@ -443,17 +444,12 @@ async fn asset_writes_to_a_privileged_namespace_are_refused() {
     // The library refuses them too, before sending.
     let (source, mut link) = system_client(&rig.bus, &rig.roots).await;
     let settings = open(&source, &mut link, DISPLAY).await;
-    assert_eq!(
-        settings
-            .write_asset("calibration", b"x")
-            .unwrap_err()
-            .kind(),
-        ErrorKind::Denied
-    );
-    assert_eq!(
-        settings.clear_asset("calibration").unwrap_err().kind(),
-        ErrorKind::Denied
-    );
+    settings.write_asset("calibration", b"x");
+    let refused = written(&source).unwrap_err();
+    assert_eq!(refused.kind(), ErrorKind::Denied, "{refused}");
+    settings.remove_asset("calibration");
+    let refused = written(&source).unwrap_err();
+    assert_eq!(refused.kind(), ErrorKind::Denied, "{refused}");
     assert!(source.take_calls(Daemon::System).is_empty());
 }
 
@@ -617,15 +613,15 @@ async fn a_two_bus_client_writes_a_privileged_namespace_through_the_system_bus()
     let (other, _, mut other_system) = two_bus_client(&device, Roots::default()).await;
     let theirs = open(&other, &mut other_system, DISPLAY).await;
 
-    let ticket = settings.write(&[Edit::set("brightness", 70)]).unwrap();
+    settings.write(&[Edit::set("brightness", 70)]);
     assert!(
         source.take_calls(Daemon::Session).is_empty(),
         "not to the session"
     );
     within(system.settle()).await;
     let outcomes = source.outcomes();
-    let result = outcomes.iter().find_map(|o| ticket.written(o));
-    result.expect("written").unwrap();
+    let failed = |o: &Outcome| matches!(o, Outcome::WriteFailed { .. });
+    assert!(!outcomes.iter().any(failed), "{outcomes:?}");
     let changed = |o: &Outcome| matches!(o, Outcome::Changed(c) if c.key == "brightness");
     assert!(outcomes.iter().any(changed), "{outcomes:?}");
     assert_eq!(settings.get("brightness"), Some(Value::Integer(70)));
@@ -663,9 +659,9 @@ async fn a_restarted_privileged_daemon_takes_the_next_write() {
     let (source, mut link) = system_client(&bus, &roots).await;
     let settings = open(&source, &mut link, DISPLAY).await;
 
-    let ticket = settings.write(&[Edit::set("brightness", 60)]).unwrap();
+    settings.write(&[Edit::set("brightness", 60)]);
     within(link.settle()).await;
-    written(&source, ticket).unwrap();
+    written(&source).unwrap();
 
     // The old process dies, and a new one takes the name.
     within(old.close()).await.unwrap();
@@ -673,11 +669,9 @@ async fn a_restarted_privileged_daemon_takes_the_next_write() {
     let service = Service::new(conn, roots.clone(), Daemon::System);
     republish(&service).await;
 
-    let ticket = settings
-        .write(&[Edit::set("mode", "night"), Edit::set("brightness", 61)])
-        .unwrap();
+    settings.write(&[Edit::set("mode", "night"), Edit::set("brightness", 61)]);
     within(link.settle()).await;
-    written(&source, ticket).unwrap();
+    written(&source).unwrap();
     assert_eq!(settings.get("brightness"), Some(Value::Integer(61)));
     assert_eq!(settings.get("mode"), Some(Value::String("night".into())));
     let admin = read(&shared_file(roots.admin_dir.as_ref(), DISPLAY)).unwrap();

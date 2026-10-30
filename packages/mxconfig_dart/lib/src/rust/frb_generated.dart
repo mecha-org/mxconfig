@@ -69,7 +69,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => 277734215;
+  int get rustContentHash => -755140658;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -89,11 +89,11 @@ abstract class RustLibApi extends BaseApi {
       required String manifestToml,
       required bool write});
 
+  void crateApiMxSettingsClear({required MxSettings that, required String key});
+
   Describe crateApiMxSettingsDescribe({required MxSettings that});
 
   List<Diagnostic> crateApiMxSettingsDiagnostics({required MxSettings that});
-
-  bool crateApiMxSettingsFromDaemon({required MxSettings that});
 
   bool? crateApiMxSettingsGetBool(
       {required MxSettings that, required String key});
@@ -112,45 +112,37 @@ abstract class RustLibApi extends BaseApi {
 
   String crateApiMxSettingsNamespace({required MxSettings that});
 
-  bool crateApiMxSettingsOnDefaults({required MxSettings that});
-
-  int? crateApiMxSettingsOtherVersion({required MxSettings that});
-
-  BigInt crateApiMxSettingsRemove(
-      {required MxSettings that, required String key});
-
-  BigInt crateApiMxSettingsRemoveAsset(
+  void crateApiMxSettingsRemoveAsset(
       {required MxSettings that, required String id});
 
   BigInt crateApiMxSettingsRevision({required MxSettings that});
 
-  BigInt crateApiMxSettingsSetAsset(
+  void crateApiMxSettingsSetAsset(
       {required MxSettings that, required String id, required List<int> bytes});
 
-  BigInt crateApiMxSettingsSetAssetFile(
+  void crateApiMxSettingsSetAssetFile(
       {required MxSettings that, required String id, required String path});
 
-  BigInt crateApiMxSettingsSetBool(
+  void crateApiMxSettingsSetBool(
       {required MxSettings that, required String key, required bool value});
 
-  BigInt crateApiMxSettingsSetDouble(
+  void crateApiMxSettingsSetDouble(
       {required MxSettings that, required String key, required double value});
 
-  BigInt crateApiMxSettingsSetInt(
+  void crateApiMxSettingsSetInt(
       {required MxSettings that,
       required String key,
       required PlatformInt64 value});
 
-  BigInt crateApiMxSettingsSetString(
+  void crateApiMxSettingsSetString(
       {required MxSettings that, required String key, required String value});
 
-  BigInt crateApiMxSettingsSetToml(
+  void crateApiMxSettingsSetToml(
       {required MxSettings that, required String key, required String value});
+
+  MxState crateApiMxSettingsState({required MxSettings that});
 
   MxSource crateApiSourceMxSourceCreate();
-
-  DaemonPresence crateApiSourceMxSourceDaemon(
-      {required MxSource that, required String bus});
 
   void crateApiSourceMxSourceEmbed(
       {required MxSource that,
@@ -304,13 +296,39 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  void crateApiMxSettingsClear(
+      {required MxSettings that, required String key}) {
+    return handler.executeSync(SyncTask(
+      callFfi: () {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMxSettings(
+            that, serializer);
+        sse_encode_String(key, serializer);
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 3)!;
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_unit,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiMxSettingsClearConstMeta,
+      argValues: [that, key],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiMxSettingsClearConstMeta => const TaskConstMeta(
+        debugName: "MxSettings_clear",
+        argNames: ["that", "key"],
+      );
+
+  @override
   Describe crateApiMxSettingsDescribe({required MxSettings that}) {
     return handler.executeSync(SyncTask(
       callFfi: () {
         final serializer = SseSerializer(generalizedFrbRustBinding);
         sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMxSettings(
             that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 3)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 4)!;
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_describe,
@@ -334,7 +352,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         final serializer = SseSerializer(generalizedFrbRustBinding);
         sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMxSettings(
             that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 4)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 5)!;
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_list_diagnostic,
@@ -349,31 +367,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiMxSettingsDiagnosticsConstMeta =>
       const TaskConstMeta(
         debugName: "MxSettings_diagnostics",
-        argNames: ["that"],
-      );
-
-  @override
-  bool crateApiMxSettingsFromDaemon({required MxSettings that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMxSettings(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 5)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_bool,
-        decodeErrorData: null,
-      ),
-      constMeta: kCrateApiMxSettingsFromDaemonConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiMxSettingsFromDaemonConstMeta =>
-      const TaskConstMeta(
-        debugName: "MxSettings_from_daemon",
         argNames: ["that"],
       );
 
@@ -535,83 +528,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  bool crateApiMxSettingsOnDefaults({required MxSettings that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMxSettings(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 12)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_bool,
-        decodeErrorData: null,
-      ),
-      constMeta: kCrateApiMxSettingsOnDefaultsConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiMxSettingsOnDefaultsConstMeta =>
-      const TaskConstMeta(
-        debugName: "MxSettings_on_defaults",
-        argNames: ["that"],
-      );
-
-  @override
-  int? crateApiMxSettingsOtherVersion({required MxSettings that}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMxSettings(
-            that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 13)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_opt_box_autoadd_u_32,
-        decodeErrorData: null,
-      ),
-      constMeta: kCrateApiMxSettingsOtherVersionConstMeta,
-      argValues: [that],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiMxSettingsOtherVersionConstMeta =>
-      const TaskConstMeta(
-        debugName: "MxSettings_other_version",
-        argNames: ["that"],
-      );
-
-  @override
-  BigInt crateApiMxSettingsRemove(
-      {required MxSettings that, required String key}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMxSettings(
-            that, serializer);
-        sse_encode_String(key, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 14)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_u_64,
-        decodeErrorData: sse_decode_mxconfig_exception,
-      ),
-      constMeta: kCrateApiMxSettingsRemoveConstMeta,
-      argValues: [that, key],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiMxSettingsRemoveConstMeta => const TaskConstMeta(
-        debugName: "MxSettings_remove",
-        argNames: ["that", "key"],
-      );
-
-  @override
-  BigInt crateApiMxSettingsRemoveAsset(
+  void crateApiMxSettingsRemoveAsset(
       {required MxSettings that, required String id}) {
     return handler.executeSync(SyncTask(
       callFfi: () {
@@ -619,11 +536,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMxSettings(
             that, serializer);
         sse_encode_String(id, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 15)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 12)!;
       },
       codec: SseCodec(
-        decodeSuccessData: sse_decode_u_64,
-        decodeErrorData: sse_decode_mxconfig_exception,
+        decodeSuccessData: sse_decode_unit,
+        decodeErrorData: null,
       ),
       constMeta: kCrateApiMxSettingsRemoveAssetConstMeta,
       argValues: [that, id],
@@ -644,7 +561,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         final serializer = SseSerializer(generalizedFrbRustBinding);
         sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMxSettings(
             that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 16)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 13)!;
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_u_64,
@@ -662,7 +579,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  BigInt crateApiMxSettingsSetAsset(
+  void crateApiMxSettingsSetAsset(
       {required MxSettings that,
       required String id,
       required List<int> bytes}) {
@@ -673,11 +590,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that, serializer);
         sse_encode_String(id, serializer);
         sse_encode_list_prim_u_8_loose(bytes, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 17)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 14)!;
       },
       codec: SseCodec(
-        decodeSuccessData: sse_decode_u_64,
-        decodeErrorData: sse_decode_mxconfig_exception,
+        decodeSuccessData: sse_decode_unit,
+        decodeErrorData: null,
       ),
       constMeta: kCrateApiMxSettingsSetAssetConstMeta,
       argValues: [that, id, bytes],
@@ -691,7 +608,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  BigInt crateApiMxSettingsSetAssetFile(
+  void crateApiMxSettingsSetAssetFile(
       {required MxSettings that, required String id, required String path}) {
     return handler.executeSync(SyncTask(
       callFfi: () {
@@ -700,10 +617,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that, serializer);
         sse_encode_String(id, serializer);
         sse_encode_String(path, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 18)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 15)!;
       },
       codec: SseCodec(
-        decodeSuccessData: sse_decode_u_64,
+        decodeSuccessData: sse_decode_unit,
         decodeErrorData: sse_decode_mxconfig_exception,
       ),
       constMeta: kCrateApiMxSettingsSetAssetFileConstMeta,
@@ -719,7 +636,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  BigInt crateApiMxSettingsSetBool(
+  void crateApiMxSettingsSetBool(
       {required MxSettings that, required String key, required bool value}) {
     return handler.executeSync(SyncTask(
       callFfi: () {
@@ -728,11 +645,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that, serializer);
         sse_encode_String(key, serializer);
         sse_encode_bool(value, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 19)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 16)!;
       },
       codec: SseCodec(
-        decodeSuccessData: sse_decode_u_64,
-        decodeErrorData: sse_decode_mxconfig_exception,
+        decodeSuccessData: sse_decode_unit,
+        decodeErrorData: null,
       ),
       constMeta: kCrateApiMxSettingsSetBoolConstMeta,
       argValues: [that, key, value],
@@ -746,7 +663,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  BigInt crateApiMxSettingsSetDouble(
+  void crateApiMxSettingsSetDouble(
       {required MxSettings that, required String key, required double value}) {
     return handler.executeSync(SyncTask(
       callFfi: () {
@@ -755,11 +672,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that, serializer);
         sse_encode_String(key, serializer);
         sse_encode_f_64(value, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 20)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 17)!;
       },
       codec: SseCodec(
-        decodeSuccessData: sse_decode_u_64,
-        decodeErrorData: sse_decode_mxconfig_exception,
+        decodeSuccessData: sse_decode_unit,
+        decodeErrorData: null,
       ),
       constMeta: kCrateApiMxSettingsSetDoubleConstMeta,
       argValues: [that, key, value],
@@ -774,7 +691,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  BigInt crateApiMxSettingsSetInt(
+  void crateApiMxSettingsSetInt(
       {required MxSettings that,
       required String key,
       required PlatformInt64 value}) {
@@ -785,11 +702,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that, serializer);
         sse_encode_String(key, serializer);
         sse_encode_i_64(value, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 21)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 18)!;
       },
       codec: SseCodec(
-        decodeSuccessData: sse_decode_u_64,
-        decodeErrorData: sse_decode_mxconfig_exception,
+        decodeSuccessData: sse_decode_unit,
+        decodeErrorData: null,
       ),
       constMeta: kCrateApiMxSettingsSetIntConstMeta,
       argValues: [that, key, value],
@@ -803,7 +720,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  BigInt crateApiMxSettingsSetString(
+  void crateApiMxSettingsSetString(
       {required MxSettings that, required String key, required String value}) {
     return handler.executeSync(SyncTask(
       callFfi: () {
@@ -812,11 +729,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that, serializer);
         sse_encode_String(key, serializer);
         sse_encode_String(value, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 22)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 19)!;
       },
       codec: SseCodec(
-        decodeSuccessData: sse_decode_u_64,
-        decodeErrorData: sse_decode_mxconfig_exception,
+        decodeSuccessData: sse_decode_unit,
+        decodeErrorData: null,
       ),
       constMeta: kCrateApiMxSettingsSetStringConstMeta,
       argValues: [that, key, value],
@@ -831,7 +748,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  BigInt crateApiMxSettingsSetToml(
+  void crateApiMxSettingsSetToml(
       {required MxSettings that, required String key, required String value}) {
     return handler.executeSync(SyncTask(
       callFfi: () {
@@ -840,10 +757,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that, serializer);
         sse_encode_String(key, serializer);
         sse_encode_String(value, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 23)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 20)!;
       },
       codec: SseCodec(
-        decodeSuccessData: sse_decode_u_64,
+        decodeSuccessData: sse_decode_unit,
         decodeErrorData: sse_decode_mxconfig_exception,
       ),
       constMeta: kCrateApiMxSettingsSetTomlConstMeta,
@@ -858,11 +775,35 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  MxState crateApiMxSettingsState({required MxSettings that}) {
+    return handler.executeSync(SyncTask(
+      callFfi: () {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMxSettings(
+            that, serializer);
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 21)!;
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_mx_state,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiMxSettingsStateConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiMxSettingsStateConstMeta => const TaskConstMeta(
+        debugName: "MxSettings_state",
+        argNames: ["that"],
+      );
+
+  @override
   MxSource crateApiSourceMxSourceCreate() {
     return handler.executeSync(SyncTask(
       callFfi: () {
         final serializer = SseSerializer(generalizedFrbRustBinding);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 24)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 22)!;
       },
       codec: SseCodec(
         decodeSuccessData:
@@ -882,33 +823,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  DaemonPresence crateApiSourceMxSourceDaemon(
-      {required MxSource that, required String bus}) {
-    return handler.executeSync(SyncTask(
-      callFfi: () {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMxSource(
-            that, serializer);
-        sse_encode_String(bus, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 25)!;
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_daemon_presence,
-        decodeErrorData: sse_decode_mxconfig_exception,
-      ),
-      constMeta: kCrateApiSourceMxSourceDaemonConstMeta,
-      argValues: [that, bus],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiSourceMxSourceDaemonConstMeta =>
-      const TaskConstMeta(
-        debugName: "MxSource_daemon",
-        argNames: ["that", "bus"],
-      );
-
-  @override
   void crateApiSourceMxSourceEmbed(
       {required MxSource that,
       required String namespace,
@@ -920,7 +834,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that, serializer);
         sse_encode_String(namespace, serializer);
         sse_encode_String(schema, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 26)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 23)!;
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_unit,
@@ -947,7 +861,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMxSource(
             that, serializer);
         sse_encode_String(schemaToml, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 27)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 24)!;
       },
       codec: SseCodec(
         decodeSuccessData:
@@ -973,7 +887,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         final serializer = SseSerializer(generalizedFrbRustBinding);
         sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMxSource(
             that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 28)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 25)!;
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_list_mx_outcome,
@@ -1000,7 +914,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMxSource(
             that, serializer);
         sse_encode_String(namespace, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 29)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 26)!;
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_u_64,
@@ -1025,7 +939,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         final serializer = SseSerializer(generalizedFrbRustBinding);
         sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMxSource(
             that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 30)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 27)!;
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_unit,
@@ -1052,7 +966,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMxSource(
             that, serializer);
         sse_encode_String(app, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 31)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 28)!;
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_unit,
@@ -1077,7 +991,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         final serializer = SseSerializer(generalizedFrbRustBinding);
         sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMxSource(
             that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 32)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 29)!;
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_opt_list_String,
@@ -1104,7 +1018,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMxSource(
             that, serializer);
         sse_encode_String(path, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 33)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 30)!;
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_unit,
@@ -1129,7 +1043,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         final serializer = SseSerializer(generalizedFrbRustBinding);
         sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMxSource(
             that, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 34)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 31)!;
       },
       codec: SseCodec(
         decodeSuccessData:
@@ -1154,7 +1068,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       callFfi: () {
         final serializer = SseSerializer(generalizedFrbRustBinding);
         sse_encode_String(userDir, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 35)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 32)!;
       },
       codec: SseCodec(
         decodeSuccessData:
@@ -1182,7 +1096,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMxTransport(
             that, serializer);
         sse_encode_String(bus, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 36)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 33)!;
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_unit,
@@ -1216,7 +1130,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_u_64(id, serializer);
         sse_encode_String(name, serializer);
         sse_encode_String(message, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 37)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 34)!;
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_unit,
@@ -1243,7 +1157,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMxTransport(
             that, serializer);
         sse_encode_String(bus, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 38)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 35)!;
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_unit,
@@ -1275,7 +1189,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_String(bus, serializer);
         sse_encode_u_64(id, serializer);
         sse_encode_list_mx_arg(args, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 39)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 36)!;
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_unit,
@@ -1298,7 +1212,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return handler.executeSync(SyncTask(
       callFfi: () {
         final serializer = SseSerializer(generalizedFrbRustBinding);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 40)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 37)!;
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_list_mx_rule,
@@ -1334,7 +1248,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_String(interface_, serializer);
         sse_encode_String(member, serializer);
         sse_encode_list_mx_arg(args, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 41)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 38)!;
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_unit,
@@ -1361,7 +1275,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMxTransport(
             that, serializer);
         sse_encode_String(bus, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 42)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 39)!;
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_list_mx_call,
@@ -1388,7 +1302,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMxTransport(
             that, serializer);
         sse_encode_String(bus, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 43)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 40)!;
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_list_prim_u_64_strict,
@@ -1554,6 +1468,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  MxUnserved dco_decode_box_autoadd_mx_unserved(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_mx_unserved(raw);
+  }
+
+  @protected
   MxconfigException dco_decode_box_autoadd_mxconfig_exception(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_mxconfig_exception(raw);
@@ -1580,12 +1500,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       doubleValue: dco_decode_opt_box_autoadd_f_64(arr[5]),
       boolValue: dco_decode_opt_box_autoadd_bool(arr[6]),
     );
-  }
-
-  @protected
-  DaemonPresence dco_decode_daemon_presence(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return DaemonPresence.values[raw as int];
   }
 
   @protected
@@ -1681,6 +1595,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   List<String> dco_decode_list_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_String).toList();
+  }
+
+  @protected
+  List<Change> dco_decode_list_change(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_change).toList();
   }
 
   @protected
@@ -1786,8 +1706,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   MxOutcome dco_decode_mx_outcome(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 9)
-      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
+    if (arr.length != 10)
+      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
     return MxOutcome(
       kind: dco_decode_mx_outcome_kind(arr[0]),
       ticket: dco_decode_u_64(arr[1]),
@@ -1798,8 +1718,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       error: dco_decode_opt_box_autoadd_mxconfig_exception(arr[4]),
       detach: dco_decode_opt_box_autoadd_detach_cause(arr[5]),
       diagnostics: dco_decode_list_diagnostic(arr[6]),
-      namespace: dco_decode_String(arr[7]),
-      asset: dco_decode_opt_String(arr[8]),
+      current: dco_decode_list_change(arr[7]),
+      namespace: dco_decode_String(arr[8]),
+      asset: dco_decode_opt_String(arr[9]),
     );
   }
 
@@ -1821,6 +1742,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       member: dco_decode_String(arr[2]),
       arg0: dco_decode_opt_String(arr[3]),
     );
+  }
+
+  @protected
+  MxState dco_decode_mx_state(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return MxState(
+      kind: dco_decode_mx_state_kind(arr[0]),
+      version: dco_decode_opt_box_autoadd_u_32(arr[1]),
+      unserved: dco_decode_opt_box_autoadd_mx_unserved(arr[2]),
+      detach: dco_decode_opt_box_autoadd_detach_cause(arr[3]),
+    );
+  }
+
+  @protected
+  MxStateKind dco_decode_mx_state_kind(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return MxStateKind.values[raw as int];
+  }
+
+  @protected
+  MxUnserved dco_decode_mx_unserved(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return MxUnserved.values[raw as int];
   }
 
   @protected
@@ -1883,6 +1830,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_i_64(raw);
+  }
+
+  @protected
+  MxUnserved? dco_decode_opt_box_autoadd_mx_unserved(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_mx_unserved(raw);
   }
 
   @protected
@@ -2075,6 +2028,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  MxUnserved sse_decode_box_autoadd_mx_unserved(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_mx_unserved(deserializer));
+  }
+
+  @protected
   MxconfigException sse_decode_box_autoadd_mxconfig_exception(
       SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -2105,13 +2064,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         intValue: var_intValue,
         doubleValue: var_doubleValue,
         boolValue: var_boolValue);
-  }
-
-  @protected
-  DaemonPresence sse_decode_daemon_presence(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    var inner = sse_decode_i_32(deserializer);
-    return DaemonPresence.values[inner];
   }
 
   @protected
@@ -2218,6 +2170,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var ans_ = <String>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_String(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<Change> sse_decode_list_change(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <Change>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_change(deserializer));
     }
     return ans_;
   }
@@ -2384,6 +2348,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_error = sse_decode_opt_box_autoadd_mxconfig_exception(deserializer);
     var var_detach = sse_decode_opt_box_autoadd_detach_cause(deserializer);
     var var_diagnostics = sse_decode_list_diagnostic(deserializer);
+    var var_current = sse_decode_list_change(deserializer);
     var var_namespace = sse_decode_String(deserializer);
     var var_asset = sse_decode_opt_String(deserializer);
     return MxOutcome(
@@ -2394,6 +2359,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         error: var_error,
         detach: var_detach,
         diagnostics: var_diagnostics,
+        current: var_current,
         namespace: var_namespace,
         asset: var_asset);
   }
@@ -2417,6 +2383,34 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         interface_: var_interface_,
         member: var_member,
         arg0: var_arg0);
+  }
+
+  @protected
+  MxState sse_decode_mx_state(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_kind = sse_decode_mx_state_kind(deserializer);
+    var var_version = sse_decode_opt_box_autoadd_u_32(deserializer);
+    var var_unserved = sse_decode_opt_box_autoadd_mx_unserved(deserializer);
+    var var_detach = sse_decode_opt_box_autoadd_detach_cause(deserializer);
+    return MxState(
+        kind: var_kind,
+        version: var_version,
+        unserved: var_unserved,
+        detach: var_detach);
+  }
+
+  @protected
+  MxStateKind sse_decode_mx_state_kind(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return MxStateKind.values[inner];
+  }
+
+  @protected
+  MxUnserved sse_decode_mx_unserved(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return MxUnserved.values[inner];
   }
 
   @protected
@@ -2512,6 +2506,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_box_autoadd_i_64(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  MxUnserved? sse_decode_opt_box_autoadd_mx_unserved(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_mx_unserved(deserializer));
     } else {
       return null;
     }
@@ -2727,6 +2733,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_mx_unserved(
+      MxUnserved self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_mx_unserved(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_mxconfig_exception(
       MxconfigException self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -2749,13 +2762,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_box_autoadd_i_64(self.intValue, serializer);
     sse_encode_opt_box_autoadd_f_64(self.doubleValue, serializer);
     sse_encode_opt_box_autoadd_bool(self.boolValue, serializer);
-  }
-
-  @protected
-  void sse_encode_daemon_presence(
-      DaemonPresence self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_i_32(self.index, serializer);
   }
 
   @protected
@@ -2833,6 +2839,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_String(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_change(List<Change> self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_change(item, serializer);
     }
   }
 
@@ -2967,6 +2982,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_box_autoadd_mxconfig_exception(self.error, serializer);
     sse_encode_opt_box_autoadd_detach_cause(self.detach, serializer);
     sse_encode_list_diagnostic(self.diagnostics, serializer);
+    sse_encode_list_change(self.current, serializer);
     sse_encode_String(self.namespace, serializer);
     sse_encode_opt_String(self.asset, serializer);
   }
@@ -2985,6 +3001,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_String(self.interface_, serializer);
     sse_encode_String(self.member, serializer);
     sse_encode_opt_String(self.arg0, serializer);
+  }
+
+  @protected
+  void sse_encode_mx_state(MxState self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_mx_state_kind(self.kind, serializer);
+    sse_encode_opt_box_autoadd_u_32(self.version, serializer);
+    sse_encode_opt_box_autoadd_mx_unserved(self.unserved, serializer);
+    sse_encode_opt_box_autoadd_detach_cause(self.detach, serializer);
+  }
+
+  @protected
+  void sse_encode_mx_state_kind(MxStateKind self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_mx_unserved(MxUnserved self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
   }
 
   @protected
@@ -3071,6 +3108,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_i_64(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_mx_unserved(
+      MxUnserved? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_mx_unserved(self, serializer);
     }
   }
 
@@ -3175,6 +3223,10 @@ class MxSettingsImpl extends RustOpaque implements MxSettings {
       RustLib.instance.api.crateApiMxSettingsAuthorize(
           that: this, manifestToml: manifestToml, write: write);
 
+  /// Unset `key`, so a lower layer or the default applies.
+  void clear({required String key}) =>
+      RustLib.instance.api.crateApiMxSettingsClear(that: this, key: key);
+
   /// The schema, for settings UIs.
   Describe describe() => RustLib.instance.api.crateApiMxSettingsDescribe(
         that: this,
@@ -3183,11 +3235,6 @@ class MxSettingsImpl extends RustOpaque implements MxSettings {
   /// Problems found while opening, migrating and reading.
   List<Diagnostic> diagnostics() =>
       RustLib.instance.api.crateApiMxSettingsDiagnostics(
-        that: this,
-      );
-
-  /// Whether the values come from the daemon rather than this process's own reads.
-  bool fromDaemon() => RustLib.instance.api.crateApiMxSettingsFromDaemon(
         that: this,
       );
 
@@ -3212,22 +3259,8 @@ class MxSettingsImpl extends RustOpaque implements MxSettings {
         that: this,
       );
 
-  /// Whether a shared namespace still holds its schema defaults.
-  bool onDefaults() => RustLib.instance.api.crateApiMxSettingsOnDefaults(
-        that: this,
-      );
-
-  /// The version holding the namespace, when it isn't this handle's. The handle then only reads.
-  int? otherVersion() => RustLib.instance.api.crateApiMxSettingsOtherVersion(
-        that: this,
-      );
-
-  /// Unset `key`, so a lower layer or the default applies.
-  BigInt remove({required String key}) =>
-      RustLib.instance.api.crateApiMxSettingsRemove(that: this, key: key);
-
-  /// Remove the user's copy of asset `id`. Returns the write's ticket.
-  BigInt removeAsset({required String id}) =>
+  /// Remove the user's copy of asset `id`.
+  void removeAsset({required String id}) =>
       RustLib.instance.api.crateApiMxSettingsRemoveAsset(that: this, id: id);
 
   /// Raised by each batch of changes. A daemon restart starts it over.
@@ -3235,36 +3268,42 @@ class MxSettingsImpl extends RustOpaque implements MxSettings {
         that: this,
       );
 
-  /// Write the user's copy of asset `id`. Returns the write's ticket.
-  BigInt setAsset({required String id, required List<int> bytes}) =>
+  /// Write the user's copy of asset `id`.
+  void setAsset({required String id, required List<int> bytes}) =>
       RustLib.instance.api
           .crateApiMxSettingsSetAsset(that: this, id: id, bytes: bytes);
 
-  /// Copy the file at `path` as the user's copy of asset `id`.
-  BigInt setAssetFile({required String id, required String path}) =>
+  /// Copy the file at `path` as the user's copy of asset `id`. Throws if it can't be opened.
+  void setAssetFile({required String id, required String path}) =>
       RustLib.instance.api
           .crateApiMxSettingsSetAssetFile(that: this, id: id, path: path);
 
-  BigInt setBool({required String key, required bool value}) =>
+  void setBool({required String key, required bool value}) =>
       RustLib.instance.api
           .crateApiMxSettingsSetBool(that: this, key: key, value: value);
 
-  BigInt setDouble({required String key, required double value}) =>
+  void setDouble({required String key, required double value}) =>
       RustLib.instance.api
           .crateApiMxSettingsSetDouble(that: this, key: key, value: value);
 
-  BigInt setInt({required String key, required PlatformInt64 value}) =>
+  void setInt({required String key, required PlatformInt64 value}) =>
       RustLib.instance.api
           .crateApiMxSettingsSetInt(that: this, key: key, value: value);
 
-  BigInt setString({required String key, required String value}) =>
+  /// Write `value` to `key`. A failure arrives as a `WriteFailed` outcome.
+  void setString({required String key, required String value}) =>
       RustLib.instance.api
           .crateApiMxSettingsSetString(that: this, key: key, value: value);
 
-  /// Write a TOML value such as `35` or `[1, 2]` to `key`.
-  BigInt setToml({required String key, required String value}) =>
+  /// Write a TOML value such as `35` or `[1, 2]` to `key`. Throws if it isn't TOML.
+  void setToml({required String key, required String value}) =>
       RustLib.instance.api
           .crateApiMxSettingsSetToml(that: this, key: key, value: value);
+
+  /// What this handle holds, and whether it can write.
+  MxState state() => RustLib.instance.api.crateApiMxSettingsState(
+        that: this,
+      );
 }
 
 @sealed
@@ -3285,10 +3324,6 @@ class MxSourceImpl extends RustOpaque implements MxSource {
     rustArcDecrementStrongCountPtr:
         RustLib.instance.api.rust_arc_decrement_strong_count_MxSourcePtr,
   );
-
-  /// Whether `bus` is carried and its daemon running.
-  DaemonPresence daemon({required String bus}) =>
-      RustLib.instance.api.crateApiSourceMxSourceDaemon(that: this, bus: bus);
 
   /// Carry `schema` for `namespace`: the one this client was built with.
   void embed({required String namespace, required String schema}) =>

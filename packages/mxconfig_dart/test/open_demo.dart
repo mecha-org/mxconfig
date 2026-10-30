@@ -5,7 +5,7 @@ import '../example/generated/demo.dart';
 
 Future<void> main() async {
   final demo = await Demo.open();
-  await demo.setNickname('aux');
+  demo.setNickname('aux');
   stdout.writeln(demo.colors.accent);
   await stdout.flush();
   exit(0);

@@ -8,7 +8,7 @@ use crate::error::{Diagnostic, Error};
 use crate::manifest::{Access, Manifest};
 use crate::paths;
 use crate::resolve::{Origin, Resolved};
-use crate::source::Source;
+use crate::source::{Detach, Source};
 use crate::space::{Key, Space};
 use crate::transport::Served;
 use mxconfig_schema::Schema;
@@ -83,7 +83,7 @@ impl Edit {
     }
 
     /// Unset `key`, so a lower layer or the default applies.
-    pub fn remove(key: impl Into<String>) -> Edit {
+    pub fn clear(key: impl Into<String>) -> Edit {
         Edit {
             key: key.into(),
             value: None,
@@ -124,6 +124,66 @@ impl Asset {
     }
 }
 
+/// What a handle holds, and whether it can write.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum State {
+    /// The namespace's real values. Writes can go through.
+    Live,
+    /// Real values, but schema version `holder` holds the namespace. Writes fail.
+    ReadOnly { holder: u32 },
+    /// The schema's defaults, because no daemon serves the namespace. Writes fail.
+    Defaults(Unserved),
+    /// No longer following the namespace. The last values stay. Writes fail.
+    Detached(Detach),
+}
+
+impl std::fmt::Display for State {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            State::Live => f.write_str("it holds the namespace's values"),
+            State::ReadOnly { holder } => {
+                write!(f, "schema v{holder} holds the namespace, so it only reads")
+            }
+            State::Defaults(why) => write!(f, "it holds its schema defaults, as {why}"),
+            State::Detached(cause) => write!(f, "it stopped following the namespace: {cause}"),
+        }
+    }
+}
+
+/// Why a shared namespace holds its schema defaults.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum Unserved {
+    /// No transport carries the bus.
+    NoBus,
+    /// The bus is there, but mxconfigd isn't.
+    NoDaemon,
+    /// mxconfigd runs, but doesn't serve this namespace.
+    NotServed,
+    /// mxconfigd serves another schema version, which this client can't read.
+    Version { served: Option<u32> },
+}
+
+impl std::fmt::Display for Unserved {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Unserved::NoBus => f.write_str("no transport carries its bus"),
+            Unserved::NoDaemon => f.write_str("mxconfigd is not running"),
+            Unserved::NotServed => f.write_str("mxconfigd does not serve it"),
+            Unserved::Version { served: Some(v) } => {
+                write!(
+                    f,
+                    "mxconfigd serves schema v{v}, which this client can't read"
+                )
+            }
+            Unserved::Version { served: None } => {
+                f.write_str("mxconfigd serves a schema version this client can't read")
+            }
+        }
+    }
+}
+
 /// A handle on an open namespace. Clones share the same namespace.
 #[derive(Clone)]
 pub struct Settings {
@@ -147,19 +207,9 @@ impl Settings {
         &self.source
     }
 
-    /// Whether the values come from the daemon rather than this process's own reads.
-    pub fn from_daemon(&self) -> bool {
-        self.space(Space::is_daemon)
-    }
-
-    /// Whether a shared namespace still holds its schema defaults.
-    pub fn on_defaults(&self) -> bool {
-        self.space(Space::on_defaults)
-    }
-
-    /// The version holding the namespace, when it isn't this handle's. The handle then only reads.
-    pub fn other_version(&self) -> Option<u32> {
-        self.space(|space| space.other)
+    /// What this handle holds, and whether it can write. Check it when the handle opens.
+    pub fn state(&self) -> State {
+        self.space(Space::handle_state)
     }
 
     pub(crate) fn namespace(&self) -> &str {

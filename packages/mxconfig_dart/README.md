@@ -6,7 +6,7 @@ Dart bindings for [mxconfig](../../README.md), over the `mxconfig-ffi` crate thr
 import 'generated/demo.dart';
 
 final demo = await Demo.open();
-await demo.colors.setAccent('#ff0000');
+demo.colors.setAccent('#ff0000');
 demo.changes().listen(print);
 ```
 

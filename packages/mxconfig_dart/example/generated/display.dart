@@ -37,10 +37,10 @@ class Display {
   /// Screen brightness in percent.
   int get brightness => settings.getInt('brightness') ?? 80;
 
-  Future<void> setBrightness(int value) => settings.setInt('brightness', value);
+  void setBrightness(int value) => settings.setInt('brightness', value);
 
   /// Unset it, so a lower layer or the default applies.
-  Future<void> clearBrightness() => settings.remove('brightness');
+  void clearBrightness() => settings.clear('brightness');
 }
 
 /// A change in `org.mechanix.desktop.display`, holding the key's new value in its type.

@@ -5,7 +5,7 @@ mod common;
 use std::path::PathBuf;
 
 use common::{ACCESS_DENIED, Bus, DISPLAY, DISPLAY_SCHEMA, TOOL, UNKNOWN_OBJECT};
-use common::{apply, caller, clear_asset, error_name, fixture, hold_as, linked, list, open};
+use common::{apply, caller, error_name, fixture, hold_as, linked, list, open, remove_asset};
 use common::{put, read, serve, shared_file, start_bus, subscribe, try_open, write_asset};
 use mxconfig::Bus as Daemon;
 use mxconfig::host::Roots;
@@ -193,7 +193,7 @@ async fn apply_with_only_unmanaged_keys_succeeds() {
     assert_eq!(values.get("locked").map(String::as_str), Some("true"));
 }
 
-/// `WriteAsset` and `ClearAsset` on a managed asset are `AccessDenied`.
+/// `WriteAsset` and `RemoveAsset` on a managed asset are `AccessDenied`.
 #[tokio::test(flavor = "multi_thread")]
 async fn asset_writes_to_a_managed_asset_are_refused() {
     let Some(rig) = rig().await else {
@@ -205,7 +205,7 @@ async fn asset_writes_to_a_managed_asset_are_refused() {
 
     let refused = write_asset(&proxy, rig.tmp.path(), KIOSK, "banner", "new").await;
     assert_eq!(error_name(refused), ACCESS_DENIED);
-    let refused = clear_asset(&proxy, KIOSK, "banner").await;
+    let refused = remove_asset(&proxy, KIOSK, "banner").await;
     assert_eq!(error_name(refused), ACCESS_DENIED);
     assert_eq!(read(&banner).as_deref(), Some("user banner"), "left alone");
 
@@ -251,8 +251,8 @@ async fn the_session_daemon_refuses_a_privileged_namespace() {
     assert_eq!(error_name(applied), UNKNOWN_OBJECT);
     let written = write_asset(&proxy, rig.tmp.path(), DISPLAY, "calibration", "x").await;
     assert_eq!(error_name(written), UNKNOWN_OBJECT);
-    let cleared = clear_asset(&proxy, DISPLAY, "calibration").await;
-    assert_eq!(error_name(cleared), UNKNOWN_OBJECT);
+    let removed = remove_asset(&proxy, DISPLAY, "calibration").await;
+    assert_eq!(error_name(removed), UNKNOWN_OBJECT);
 
     let after: Vec<_> = files.iter().map(|file| read(file)).collect();
     assert_eq!(after, before);

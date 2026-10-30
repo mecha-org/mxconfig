@@ -91,7 +91,7 @@ void main() {
 
     // The app's own write arrives on watch() too.
     final changed = settings.watch().first;
-    await settings.setString('colors.accent', '#ff0000');
+    settings.setString('colors.accent', '#ff0000');
     final change = await changed;
     expect(change.key, 'colors.accent');
     expect(change.value, '"#ff0000"');
@@ -99,17 +99,22 @@ void main() {
     expect(settings.getString('colors.accent'), '#ff0000');
     expect(settings.revision, 1);
 
-    await settings.setInt('colors.corner_radius', 20);
+    settings.setInt('colors.corner_radius', 20);
     expect(settings.getInt('colors.corner_radius'), 20);
 
-    await expectLater(
-        settings.setInt('colors.corner_radius', 99), throwsA(anything));
-    await expectLater(settings.setInt('colors.accent', 5), throwsA(anything));
-    await expectLater(settings.setBool('nope.nope', true), throwsA(anything));
+    // A refused write arrives on watchWriteFailed with what the key holds.
+    final failed = <WriteFailure>[];
+    settings.watchWriteFailed().listen(failed.add);
+    settings.setInt('colors.corner_radius', 99);
+    settings.setInt('colors.accent', 5);
+    settings.setBool('nope.nope', true);
+    expect(failed, hasLength(3));
+    expect(failed.first.current.single.key, 'colors.corner_radius');
+    expect(failed.first.current.single.value, '20');
 
-    await settings.setString('nickname', 'aux');
+    settings.setString('nickname', 'aux');
     final removed = settings.watch().first;
-    await settings.remove('nickname');
+    settings.clear('nickname');
     expect((await removed).isUnset, isTrue);
     expect(settings.getString('nickname'), isNull);
 
@@ -219,12 +224,12 @@ ops = [{ op = "rename", from = "colors.accent", to = "colors.color" }]
 ''';
     final settings =
         await Settings.openIn(userDir: dir.path, schemaToml: reader);
-    expect(settings.otherVersion, 1);
+    expect(settings.state,
+        isA<ReadOnlyState>().having((s) => s.holder, 'holder', 1));
     expect(settings.getBool('verbose'), isFalse);
-    await expectLater(
-        settings.setBool('verbose', true),
-        throwsA(isA<MxconfigException>()
-            .having((e) => e.versionConflict, 'versionConflict', isTrue)));
+    final failed = settings.watchWriteFailed().first;
+    settings.setBool('verbose', true);
+    expect((await failed).error.versionConflict, isTrue);
     settings.dispose();
     held.dispose();
   });

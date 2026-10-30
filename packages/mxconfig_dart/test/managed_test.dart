@@ -52,15 +52,17 @@ void main() {
   test('a managed key refuses every write', () async {
     final settings = await open();
 
-    final refused = throwsA(isA<MxconfigException>());
-    await expectLater(settings.setInt('brightness', 1), refused);
-    await expectLater(settings.setToml('brightness', '1'), refused);
-    await expectLater(settings.remove('brightness'), refused);
+    final failed = <WriteFailure>[];
+    settings.watchWriteFailed().listen(failed.add);
+    settings.setInt('brightness', 1);
+    settings.setToml('brightness', '1');
+    settings.clear('brightness');
+    expect(failed, hasLength(3));
     expect(user('config.toml').existsSync(), isFalse);
     expect(settings.getInt('brightness'), 50);
 
     // An unmanaged key beside it writes as usual.
-    await settings.setInt('volume', 10);
+    settings.setInt('volume', 10);
     expect(settings.getInt('volume'), 10);
     settings.dispose();
   });
@@ -68,13 +70,15 @@ void main() {
   test('a managed asset refuses every write', () async {
     final settings = await open();
 
-    final refused = throwsA(isA<MxconfigException>());
+    final failed = <WriteFailure>[];
+    settings.watchWriteFailed().listen(failed.add);
     final bytes = Uint8List.fromList([1, 2, 3]);
-    await expectLater(settings.setAsset('layout', bytes), refused);
-    await expectLater(settings.removeAsset('layout'), refused);
+    settings.setAsset('layout', bytes);
+    settings.removeAsset('layout');
+    expect(failed.map((f) => f.asset), ['layout', 'layout']);
     expect(user('layout.yaml').existsSync(), isFalse);
 
-    await settings.setAsset('theme', bytes);
+    settings.setAsset('theme', bytes);
     expect(settings.asset('theme'), bytes);
     settings.dispose();
   });

@@ -101,6 +101,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64 dco_decode_box_autoadd_i_64(dynamic raw);
 
   @protected
+  MxUnserved dco_decode_box_autoadd_mx_unserved(dynamic raw);
+
+  @protected
   MxconfigException dco_decode_box_autoadd_mxconfig_exception(dynamic raw);
 
   @protected
@@ -108,9 +111,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Change dco_decode_change(dynamic raw);
-
-  @protected
-  DaemonPresence dco_decode_daemon_presence(dynamic raw);
 
   @protected
   Describe dco_decode_describe(dynamic raw);
@@ -138,6 +138,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<String> dco_decode_list_String(dynamic raw);
+
+  @protected
+  List<Change> dco_decode_list_change(dynamic raw);
 
   @protected
   List<Diagnostic> dco_decode_list_diagnostic(dynamic raw);
@@ -188,6 +191,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MxRule dco_decode_mx_rule(dynamic raw);
 
   @protected
+  MxState dco_decode_mx_state(dynamic raw);
+
+  @protected
+  MxStateKind dco_decode_mx_state_kind(dynamic raw);
+
+  @protected
+  MxUnserved dco_decode_mx_unserved(dynamic raw);
+
+  @protected
   MxconfigException dco_decode_mxconfig_exception(dynamic raw);
 
   @protected
@@ -212,6 +224,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw);
+
+  @protected
+  MxUnserved? dco_decode_opt_box_autoadd_mx_unserved(dynamic raw);
 
   @protected
   MxconfigException? dco_decode_opt_box_autoadd_mxconfig_exception(dynamic raw);
@@ -312,6 +327,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64 sse_decode_box_autoadd_i_64(SseDeserializer deserializer);
 
   @protected
+  MxUnserved sse_decode_box_autoadd_mx_unserved(SseDeserializer deserializer);
+
+  @protected
   MxconfigException sse_decode_box_autoadd_mxconfig_exception(
       SseDeserializer deserializer);
 
@@ -320,9 +338,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Change sse_decode_change(SseDeserializer deserializer);
-
-  @protected
-  DaemonPresence sse_decode_daemon_presence(SseDeserializer deserializer);
 
   @protected
   Describe sse_decode_describe(SseDeserializer deserializer);
@@ -350,6 +365,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer);
+
+  @protected
+  List<Change> sse_decode_list_change(SseDeserializer deserializer);
 
   @protected
   List<Diagnostic> sse_decode_list_diagnostic(SseDeserializer deserializer);
@@ -400,6 +418,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MxRule sse_decode_mx_rule(SseDeserializer deserializer);
 
   @protected
+  MxState sse_decode_mx_state(SseDeserializer deserializer);
+
+  @protected
+  MxStateKind sse_decode_mx_state_kind(SseDeserializer deserializer);
+
+  @protected
+  MxUnserved sse_decode_mx_unserved(SseDeserializer deserializer);
+
+  @protected
   MxconfigException sse_decode_mxconfig_exception(SseDeserializer deserializer);
 
   @protected
@@ -425,6 +452,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlatformInt64? sse_decode_opt_box_autoadd_i_64(SseDeserializer deserializer);
+
+  @protected
+  MxUnserved? sse_decode_opt_box_autoadd_mx_unserved(
+      SseDeserializer deserializer);
 
   @protected
   MxconfigException? sse_decode_opt_box_autoadd_mxconfig_exception(
@@ -528,6 +559,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       PlatformInt64 self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_mx_unserved(
+      MxUnserved self, SseSerializer serializer);
+
+  @protected
   void sse_encode_box_autoadd_mxconfig_exception(
       MxconfigException self, SseSerializer serializer);
 
@@ -536,10 +571,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_change(Change self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_daemon_presence(
-      DaemonPresence self, SseSerializer serializer);
 
   @protected
   void sse_encode_describe(Describe self, SseSerializer serializer);
@@ -567,6 +598,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_change(List<Change> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_diagnostic(
@@ -622,6 +656,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_mx_rule(MxRule self, SseSerializer serializer);
 
   @protected
+  void sse_encode_mx_state(MxState self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_mx_state_kind(MxStateKind self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_mx_unserved(MxUnserved self, SseSerializer serializer);
+
+  @protected
   void sse_encode_mxconfig_exception(
       MxconfigException self, SseSerializer serializer);
 
@@ -650,6 +693,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_i_64(
       PlatformInt64? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_mx_unserved(
+      MxUnserved? self, SseSerializer serializer);
 
   @protected
   void sse_encode_opt_box_autoadd_mxconfig_exception(

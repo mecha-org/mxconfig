@@ -3,7 +3,7 @@
 mod common;
 
 use common::{Bus, DESKTOP, NAMESPACE, ZbusLink, connect, hear, linked, open, served};
-use common::{opened, try_open, user_file};
+use common::{opened, try_open, user_file, written};
 use mxconfig::host::Roots;
 use mxconfig::{Detach, Edit, ErrorKind, Origin, Outcome, Settings, Source, Ticket, Value};
 
@@ -28,15 +28,15 @@ async fn a_daemon_backed_handle_reads_writes_and_hears_other_writers() {
     );
 
     // A write goes to the daemon's user dir and is reported when done.
-    let write = settings.write(&[Edit::set("audio.volume", 35)]).unwrap();
+    settings.write(&[Edit::set("audio.volume", 35)]);
     link.settle().await;
     // The daemon sent `Changed` before replying, so the change is applied.
     let outcomes = source.outcomes();
-    outcomes
-        .iter()
-        .find_map(|o| write.written(o))
-        .unwrap()
-        .unwrap();
+    assert!(
+        !outcomes
+            .iter()
+            .any(|o| matches!(o, Outcome::WriteFailed { .. }))
+    );
     assert!(
         outcomes
             .iter()
@@ -48,7 +48,7 @@ async fn a_daemon_backed_handle_reads_writes_and_hears_other_writers() {
     // Another client's write arrives as a signal, then as an outcome.
     let (other, mut other_link) = linked(&bus).await;
     let theirs = open(&other, &mut other_link, NAMESPACE).await;
-    theirs.write(&[Edit::set("audio.volume", 12)]).unwrap();
+    theirs.write(&[Edit::set("audio.volume", 12)]);
     other_link.settle().await;
     let twelve =
         |o: &Outcome| matches!(o, Outcome::Changed(c) if c.value == Some(Value::Integer(12)));
@@ -109,7 +109,7 @@ description = "d"
     source.embed("org.example.newapp", APP);
     let settings = open(&source, &mut link, "org.example.newapp").await;
     assert_eq!(settings.get("level"), Some(Value::Integer(3)));
-    settings.write(&[Edit::set("level", 4)]).unwrap();
+    settings.write(&[Edit::set("level", 4)]);
     link.settle().await;
     assert!(user_file(&roots, "org.example.newapp", "config.toml").is_file());
 }
@@ -196,30 +196,23 @@ async fn asset_writes_go_as_files_the_daemon_copies() {
     let settings = open(&source, &mut link, NAMESPACE).await;
     let copy = user_file(&roots, NAMESPACE, "layout.yaml");
 
-    // Each write sends `AssetChanged` before `Written`.
+    // Each write lands as an `AssetChanged`.
     let picked = tmp.path().join("picked.yaml");
     std::fs::write(&picked, "picked").unwrap();
     let from_file = std::os::fd::OwnedFd::from(std::fs::File::open(&picked).unwrap());
     let mut from_file = Some(from_file);
     for text in [Some("bytes"), Some("picked"), None] {
-        let ticket = match text {
+        match text {
             Some("bytes") => settings.write_asset("layout", b"bytes"),
             Some(_) => settings.write_asset_from("layout", from_file.take().unwrap()),
-            None => settings.clear_asset("layout"),
-        };
-        let ticket = ticket.unwrap();
+            None => settings.remove_asset("layout"),
+        }
         link.settle().await;
         let outcomes = source.outcomes();
-        let landed = outcomes
-            .iter()
-            .position(|o| ticket.written(o).is_some())
-            .unwrap();
-        let moved = outcomes
-            .iter()
-            .position(|o| matches!(o, Outcome::AssetChanged { .. }));
-        assert!(moved.unwrap() < landed, "{outcomes:?}");
-        let written = ticket.written(&outcomes[landed]).unwrap();
-        assert!(written.is_ok(), "{written:?}");
+        let moved = |o: &Outcome| matches!(o, Outcome::AssetChanged { .. });
+        assert!(outcomes.iter().any(moved), "{outcomes:?}");
+        let failed = |o: &Outcome| matches!(o, Outcome::WriteFailed { .. });
+        assert!(!outcomes.iter().any(failed), "{outcomes:?}");
         assert_eq!(std::fs::read_to_string(&copy).ok().as_deref(), text);
         let now = settings.asset("layout").unwrap().text().unwrap();
         assert_eq!(now, text.unwrap_or("vendor"));
@@ -287,7 +280,8 @@ async fn closing_the_link_releases_the_hold_and_detaches() {
         Some(Value::Integer(80)),
         "kept"
     );
-    let e = settings.write(&[Edit::set("audio.volume", 5)]).unwrap_err();
+    settings.write(&[Edit::set("audio.volume", 5)]);
+    let e = written(&source).unwrap_err();
     assert_eq!(e.kind(), ErrorKind::Detached);
 }
 

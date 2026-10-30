@@ -108,9 +108,7 @@ fn an_outside_edit_after_an_own_write_is_read() {
     let settings = open(&source, schema());
     let fd = source.inotify_fd().unwrap();
     let mine = mxconfig::Value::String("#111111".into());
-    settings
-        .write(&[mxconfig::Edit::set("colors.accent", mine)])
-        .unwrap();
+    settings.write(&[mxconfig::Edit::set("colors.accent", mine)]);
     source.outcomes();
     assert!(
         feed(&source, &fd).is_empty(),

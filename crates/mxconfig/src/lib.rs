@@ -31,12 +31,10 @@ pub use mxconfig_schema::value::Value;
 pub use mxconfig_schema::{AssetSchema, Class, Group, KeySchema, KeyType, Schema};
 pub use paths::LayerKind;
 pub use resolve::{Origin, Resolved};
-pub use settings::{Asset, Edit, Settings};
-pub use source::{
-    Detach, Event, FromSettings, Namespace, Outcome, Source, Ticket, TicketId, Write,
-};
+pub use settings::{Asset, Edit, Settings, State, Unserved};
+pub use source::{Detach, Event, FromSettings, Namespace, Outcome, Source, Ticket, TicketId};
 /// A map value, used by generated clients for map keys.
 pub use toml::Table;
 /// A TOML datetime, used by generated clients for datetime keys.
 pub use toml::value::Datetime;
-pub use transport::{Bus, Change, Presence};
+pub use transport::{Bus, Change};

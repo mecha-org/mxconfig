@@ -72,36 +72,40 @@ use mxconfig::{Event, Source};
 let source = Source::new();
 source.request::<Demo>();
 
-fn on_demo(app: &mut App, event: Event<Demo>) -> Result<(), mxconfig::Error> {
+fn on_demo(app: &mut App, event: Event<Demo>) {
     match event {
         Event::Opened(demo) => {
             println!("accent is {}", demo.colors().accent());
-            demo.colors().set_accent("#ff0000")?;
+            demo.colors().set_accent("#ff0000");
             app.demo = Some(demo);
         }
         Event::Changed(DemoChange::ColorsAccent(accent)) => println!("accent is now {accent}"),
-        Event::OpenFailed(e) | Event::WriteFailed(e) => return Err(e),
+        Event::WriteFailed { error, current } => {
+            eprintln!("not written: {error}");
+            // Each touched key's value now, for a UI to show again.
+            app.show(current);
+        }
+        Event::OpenFailed(error) => eprintln!("not opened: {error}"),
         _ => {}
     }
-    Ok(())
 }
 ```
 
-`Event<Demo>` brings everything about the namespace: `Opened` with the handle, which the app keeps, or `OpenFailed`; `Changed` with a typed `DemoChange`; `Written` or `WriteFailed` for each write; `Detached`; and `Diagnosed` with new problems to log.
+`Event<Demo>` brings everything about the namespace: `Opened` with the handle, which the app keeps, or `OpenFailed`; `Changed` with a typed `DemoChange`; `WriteFailed` for a write that didn't land; `Detached`; and `Diagnosed` with new problems to log.
 
 A runtime integration calls the handler for each event. Without one, this goes after each wake-up of the app's loop, and after app code runs:
 
 ```rust
 for outcome in source.outcomes() {
     if let Some(event) = outcome.event::<Demo>() {
-        on_demo(&mut app, event)?;
+        on_demo(&mut app, event);
     }
 }
 ```
 
 What to know:
 
-- **Getters return at once. Writes finish later.** A setter checks the value right away, and `Event::Written` or `Event::WriteFailed` says whether the write landed.
+- **Getters return at once. Writes finish later.** A setter returns nothing. The new value arrives as `Event::Changed`, or `Event::WriteFailed` says why it didn't land, a bad value included. A write that changes nothing raises nothing.
 - **Every change arrives the same way.** Your own writes, other apps' writes, hand edits and migrations all arrive as `Event::Changed`.
 - **Open once.** Opening a namespace again returns the same handle. The namespace closes when its last handle is dropped.
 - **The app reads with its own schema.** The client carries the schema it was built from, so the app works even if no schema is installed.
@@ -164,7 +168,7 @@ final demo = await Demo.open();
 final colors = demo.colors;
 
 colors.accent;                       // '#7aa2f7', or the user's value
-await colors.setAccent('#ff0000');   // completes once the write lands
+colors.setAccent('#ff0000');         // arrives as a change, or on watchWriteFailed()
 
 await for (final change in demo.changes()) {
   switch (change) {
@@ -175,7 +179,7 @@ await for (final change in demo.changes()) {
 ```
 
 - `changes()` gives one class per key, and every change, the app's own writes included. Printing a change shows its key and value, such as `colors.mode = ColorsMode.light`.
-- A refused write fails its future with an `MxconfigException`.
+- A refused write arrives on `demo.settings.watchWriteFailed()`, with its `MxconfigException`.
 - Problems the library finds are logged to stderr.
 
 **6. To read shared settings,** install the D-Bus transport once, over the app's own client:

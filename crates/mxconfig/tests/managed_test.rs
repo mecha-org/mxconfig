@@ -12,8 +12,8 @@ use common::{Through, int, put as write, reach_bus, remote, subscribed, text};
 use mxconfig::host::Home;
 use mxconfig::host::Roots;
 use mxconfig::runtime::Drive;
-use mxconfig::{Bus, Class, Edit, Error, ErrorKind, LayerKind, Origin, Outcome, Presence};
-use mxconfig::{Schema, Settings, Source, Value};
+use mxconfig::{Bus, Class, Edit, Error, ErrorKind, LayerKind, Origin};
+use mxconfig::{Schema, Settings, Source, State, Unserved, Value};
 use tempfile::TempDir;
 
 /// An app namespace with managed and unmanaged keys and assets.
@@ -288,11 +288,11 @@ fn a_managed_key_write_is_denied_and_touches_nothing() {
     drop(source.outcomes());
     let before = tree.snapshot();
 
-    denied(settings.write(&[Edit::set("brightness", 1)]));
-    denied(settings.write(&[Edit::remove("brightness")]));
-    denied(settings.write(&[Edit::set("lock", "on")]));
+    denied(settings.apply(&[Edit::set("brightness", 1)]));
+    denied(settings.apply(&[Edit::clear("brightness")]));
+    denied(settings.apply(&[Edit::set("lock", "on")]));
     denied(settings.set("brightness", int(1)));
-    denied(settings.remove("lock"));
+    denied(settings.clear("lock"));
 
     assert_eq!(tree.snapshot(), before, "nothing was written");
     quiet(&source);
@@ -310,12 +310,12 @@ fn a_mixed_batch_with_a_managed_key_writes_nothing() {
     let before = tree.snapshot();
 
     let first = [Edit::set("volume", 10), Edit::set("brightness", 10)];
-    denied(settings.write(&first));
-    let last = [Edit::set("brightness", 10), Edit::remove("volume")];
-    denied(settings.write(&last));
+    denied(settings.apply(&first));
+    let last = [Edit::set("brightness", 10), Edit::clear("volume")];
+    denied(settings.apply(&last));
     let middle = [
         Edit::set("volume", 10),
-        Edit::remove("lock"),
+        Edit::clear("lock"),
         Edit::set("volume", 11),
     ];
     denied(settings.apply(&middle));
@@ -331,7 +331,7 @@ fn a_mixed_batch_with_a_managed_key_writes_nothing() {
 fn a_managed_refusal_names_the_key() {
     let tree = Tree::new();
     let settings = tree.open(APP);
-    let e = settings.write(&[Edit::set("brightness", 1)]).unwrap_err();
+    let e = settings.apply(&[Edit::set("brightness", 1)]).unwrap_err();
     assert!(e.to_string().contains("brightness"), "{e}");
     assert_ne!(e.kind(), ErrorKind::Invalid, "{e}");
     assert!(!matches!(e.kind(), ErrorKind::Unreachable(_)));
@@ -343,7 +343,7 @@ fn a_managed_key_with_a_bad_value_is_still_refused() {
     let tree = Tree::new();
     let settings = tree.open(APP);
     let before = tree.snapshot();
-    assert!(settings.write(&[Edit::set("brightness", "high")]).is_err());
+    assert!(settings.apply(&[Edit::set("brightness", "high")]).is_err());
     assert_eq!(tree.snapshot(), before);
     quiet(settings.source());
 }
@@ -358,8 +358,8 @@ fn a_managed_write_is_denied_without_a_user_dir() {
         ..tree.roots.clone()
     });
     let settings = open(&source, APP_NS).unwrap();
-    denied(settings.write(&[Edit::set("brightness", 1)]));
-    denied(settings.write_asset("layout", b"x"));
+    denied(settings.apply(&[Edit::set("brightness", 1)]));
+    denied(settings.set_asset("layout", b"x"));
     // An unmanaged key fails for the missing dir instead.
     let e = settings.set("volume", int(1)).unwrap_err();
     assert_ne!(e.kind(), ErrorKind::Denied, "{e}");
@@ -388,10 +388,10 @@ fn a_managed_asset_refuses_every_writer() {
     reach(&source);
     let before = tree.snapshot();
 
-    denied(settings.write_asset("layout", b"x"));
+    denied(settings.set_asset("layout", b"x"));
     let (_dir, fd) = fd_of(b"from a file");
-    denied(settings.write_asset_from("layout", fd));
-    denied(settings.clear_asset("layout"));
+    denied(settings.set_asset_from("layout", fd));
+    denied(settings.unset_asset("layout"));
 
     assert_eq!(tree.snapshot(), before, "the user copy is left alone");
     quiet(&source);
@@ -412,7 +412,7 @@ fn an_unmanaged_asset_beside_a_managed_one_still_writes() {
             ..
         }
     ));
-    settings.remove_asset("theme").unwrap();
+    settings.unset_asset("theme").unwrap();
     assert!(settings.asset("theme").is_none());
 }
 
@@ -422,8 +422,8 @@ fn a_managed_key_in_a_desktop_namespace_is_denied() {
     let tree = Tree::new();
     let settings = tree.open(DESKTOP);
     let before = tree.snapshot();
-    denied(settings.write(&[Edit::set("policy", "closed")]));
-    denied(settings.write(&[Edit::set("accent", "red"), Edit::remove("policy")]));
+    denied(settings.apply(&[Edit::set("policy", "closed")]));
+    denied(settings.apply(&[Edit::set("accent", "red"), Edit::clear("policy")]));
     assert_eq!(tree.snapshot(), before);
     quiet(settings.source());
 }
@@ -722,7 +722,7 @@ fn a_desktop_namespace_keeps_its_user_layer() {
     assert!(source.take_calls(Bus::Session).is_empty());
 }
 
-/// A client holds a shared namespace's defaults until its daemon serves it.
+/// A client holds a shared namespace's defaults when no daemon serves it, and keeps them.
 #[test]
 fn a_client_never_opens_a_shared_namespace_from_files() {
     let tree = Tree::new();
@@ -740,7 +740,7 @@ fn a_client_never_opens_a_shared_namespace_from_files() {
         );
         let source = tree.source();
         let settings = open(&source, namespace).unwrap();
-        assert!(settings.on_defaults() && !settings.from_daemon());
+        assert_eq!(settings.state(), State::Defaults(Unserved::NoBus));
         let defaults = parse(schema)
             .keys()
             .iter()
@@ -751,11 +751,10 @@ fn a_client_never_opens_a_shared_namespace_from_files() {
             defaults,
             "no file was read"
         );
-        assert_eq!(source.daemon(bus), Presence::NoBus);
-        // Reaching the bus asks the daemon.
+        // Reaching the bus later doesn't subscribe it: a restart picks the daemon up.
         let calls = reach_bus(&source, bus);
-        assert_eq!(source.daemon(bus), Presence::Running);
-        assert_eq!(members(&calls), ["Subscribe"]);
+        assert!(calls.is_empty(), "{:?}", members(&calls));
+        assert_eq!(settings.state(), State::Defaults(Unserved::NoBus));
     }
 }
 
@@ -766,8 +765,8 @@ fn a_managed_key_in_a_privileged_namespace_is_denied() {
     let settings = tree.open(PRIVILEGED);
     let source = settings.source().clone();
     reach_bus(&source, Bus::System);
-    denied(settings.write(&[Edit::set("gamma", 1.0)]));
-    denied(settings.write(&[Edit::set("brightness", 1), Edit::remove("gamma")]));
+    denied(settings.apply(&[Edit::set("gamma", 1.0)]));
+    denied(settings.apply(&[Edit::set("brightness", 1), Edit::clear("gamma")]));
     quiet(&source);
 }
 
@@ -782,10 +781,10 @@ fn a_privileged_namespace_refuses_asset_writes() {
             reach_bus(&source, Bus::System);
             reach(&source);
         }
-        denied(settings.write_asset("curve", b"x"));
+        denied(settings.set_asset("curve", b"x"));
         let (_dir, fd) = fd_of(b"x");
-        denied(settings.write_asset_from("curve", fd));
-        denied(settings.clear_asset("curve"));
+        denied(settings.set_asset_from("curve", fd));
+        denied(settings.unset_asset("curve"));
         quiet(&source);
     }
     assert!(!tree.root(LayerKind::User).exists());
@@ -838,7 +837,7 @@ fn a_system_serving_source_writes_the_admin_file() {
     assert!(source.take_calls(Bus::System).is_empty());
     assert!(source.take_calls(Bus::Session).is_empty());
 
-    settings.remove("brightness").unwrap();
+    settings.clear("brightness").unwrap();
     assert_eq!(settings.get("brightness"), Some(int(50)));
     let written = fs::read_to_string(&admin).unwrap();
     assert!(!written.contains("brightness"), "{written}");
@@ -852,10 +851,10 @@ fn a_system_serving_source_refuses_managed_keys_and_assets() {
     let source = tree.serving(Bus::System);
     let settings = open(&source, PRIVILEGED_NS).unwrap();
     let before = tree.snapshot();
-    denied(settings.write(&[Edit::set("gamma", 1.0)]));
-    denied(settings.write(&[Edit::set("brightness", 1), Edit::set("gamma", 1.0)]));
-    denied(settings.write_asset("curve", b"x"));
-    denied(settings.clear_asset("curve"));
+    denied(settings.apply(&[Edit::set("gamma", 1.0)]));
+    denied(settings.apply(&[Edit::set("brightness", 1), Edit::set("gamma", 1.0)]));
+    denied(settings.set_asset("curve", b"x"));
+    denied(settings.unset_asset("curve"));
     assert_eq!(tree.snapshot(), before);
     quiet(&source);
 }
@@ -868,8 +867,8 @@ fn a_session_serving_source_refuses_managed_keys() {
     let source = tree.serving(Bus::Session);
     let settings = open(&source, APP_NS).unwrap();
     let before = tree.snapshot();
-    denied(settings.write(&[Edit::set("brightness", 1)]));
-    denied(settings.write_asset("layout", b"x"));
+    denied(settings.apply(&[Edit::set("brightness", 1)]));
+    denied(settings.set_asset("layout", b"x"));
     assert_eq!(tree.snapshot(), before);
     quiet(&source);
 
@@ -1083,7 +1082,7 @@ fn served(source: &Source, namespace: &str, schema: &str, values: &[(&str, Value
     let args = subscribed(schema, 1, &values.collect(), &[]);
     source.deliver(bus, answer(call.id, args));
     let settings = common::opened(source, ticket).unwrap();
-    assert!(settings.from_daemon());
+    assert_eq!(settings.state(), State::Live);
     settings
 }
 
@@ -1098,16 +1097,16 @@ fn a_daemon_backed_handle_refuses_managed_writes_locally() {
     reach_bus(&source, Bus::System);
     assert_eq!(settings.get("brightness"), Some(int(20)));
 
-    denied(settings.write(&[Edit::set("brightness", 1)]));
-    denied(settings.write(&[Edit::set("volume", 1), Edit::remove("lock")]));
-    denied(settings.write_asset("layout", b"x"));
+    denied(settings.apply(&[Edit::set("brightness", 1)]));
+    denied(settings.apply(&[Edit::set("volume", 1), Edit::clear("lock")]));
+    denied(settings.set_asset("layout", b"x"));
     let (_dir, fd) = fd_of(b"x");
-    denied(settings.write_asset_from("layout", fd));
-    denied(settings.clear_asset("layout"));
+    denied(settings.set_asset_from("layout", fd));
+    denied(settings.unset_asset("layout"));
     quiet(&source);
 
     // An unmanaged key goes to the session daemon.
-    settings.write(&[Edit::set("volume", 1)]).unwrap();
+    settings.write(&[Edit::set("volume", 1)]);
     assert_eq!(members(&source.take_calls(Bus::Session)), ["Apply"]);
     assert!(source.take_calls(Bus::System).is_empty());
 }
@@ -1118,19 +1117,19 @@ fn a_daemon_backed_privileged_handle_writes_through_the_system_bus() {
     let tree = Tree::new();
     let source = tree.source();
     let settings = served(&source, PRIVILEGED_NS, PRIVILEGED, &[]);
-    denied(settings.write(&[Edit::set("gamma", 1.0)]));
-    denied(settings.write_asset("curve", b"x"));
-    denied(settings.clear_asset("curve"));
+    denied(settings.apply(&[Edit::set("gamma", 1.0)]));
+    denied(settings.set_asset("curve", b"x"));
+    denied(settings.unset_asset("curve"));
     quiet(&source);
 
-    settings.write(&[Edit::set("brightness", 1)]).unwrap();
+    settings.write(&[Edit::set("brightness", 1)]);
     assert_eq!(members(&source.take_calls(Bus::System)), ["Apply"]);
     assert!(source.take_calls(Bus::Session).is_empty());
     let outcomes = source.outcomes();
-    let written = outcomes
-        .iter()
-        .any(|o| matches!(o, Outcome::Written { .. } | Outcome::WriteFailed { .. }));
-    assert!(!written, "it waits for the system daemon: {outcomes:?}");
+    assert!(
+        outcomes.is_empty(),
+        "it waits for the system daemon: {outcomes:?}"
+    );
 }
 
 /// A daemon-backed desktop handle refuses its managed key too.
@@ -1139,9 +1138,9 @@ fn a_daemon_backed_desktop_handle_refuses_managed_keys() {
     let tree = Tree::new();
     let source = tree.source();
     let settings = served(&source, DESKTOP_NS, DESKTOP, &[]);
-    denied(settings.write(&[Edit::set("policy", "closed")]));
+    denied(settings.apply(&[Edit::set("policy", "closed")]));
     quiet(&source);
-    settings.write(&[Edit::set("accent", "red")]).unwrap();
+    settings.write(&[Edit::set("accent", "red")]);
     assert_eq!(members(&source.take_calls(Bus::Session)), ["Apply"]);
 }
 
@@ -1159,27 +1158,9 @@ fn a_privileged_handle_hears_only_the_system_daemon() {
     assert_eq!(settings.get("brightness"), Some(int(7)));
 }
 
-/// A defaults handle follows the daemon once it answers, as a change.
+/// A shared open without a daemon keeps its defaults, even once one starts.
 #[test]
-fn a_defaults_handle_follows_the_daemon_once_it_answers() {
-    let tree = Tree::new();
-    tree.install(DESKTOP);
-    let source = tree.source();
-    let settings = open(&source, DESKTOP_NS).unwrap();
-    let calls = reach_bus(&source, Bus::Session);
-    let [call] = &*calls else { panic!("{calls:?}") };
-    let values = BTreeMap::from([("accent".into(), text("red"))]);
-    let reply = subscribed(DESKTOP, 1, &values, &[]);
-    source.deliver(Bus::Session, answer(call.id, reply));
-    assert!(!settings.on_defaults() && settings.from_daemon());
-    assert_eq!(settings.get("accent"), Some(text("red")));
-    let changed = |o: &Outcome| matches!(o, Outcome::Changed(c) if c.key == "accent");
-    assert!(source.outcomes().iter().any(changed));
-}
-
-/// A shared open without a daemon follows one that starts later.
-#[test]
-fn a_missing_daemon_leaves_the_defaults_until_one_starts() {
+fn a_missing_daemon_leaves_the_defaults_for_good() {
     let tree = Tree::new();
     tree.install(DESKTOP);
     let source = tree.source();
@@ -1192,16 +1173,21 @@ fn a_missing_daemon_leaves_the_defaults_until_one_starts() {
         failed(call.id, "org.freedesktop.DBus.Error.ServiceUnknown"),
     );
     let settings = common::opened(&source, ticket).unwrap();
-    assert!(settings.on_defaults());
+    assert_eq!(settings.state(), State::Defaults(Unserved::NoDaemon));
     assert!(
         source.take_calls(Bus::Session).is_empty(),
         "no retry by itself"
     );
 
-    // The daemon starts, so the handle subscribes.
+    // The daemon starts, but the handle stays on its defaults.
     source.deliver(Bus::Session, owner(""));
     source.deliver(Bus::Session, owner(DAEMON));
-    assert_eq!(members(&source.take_calls(Bus::Session)), ["Subscribe"]);
+    assert!(source.take_calls(Bus::Session).is_empty());
+    assert_eq!(settings.state(), State::Defaults(Unserved::NoDaemon));
+    let e = settings
+        .apply(&[Edit::set("accent", text("red"))])
+        .unwrap_err();
+    assert_eq!(e.kind(), ErrorKind::Unreachable(Bus::Session), "{e}");
 }
 
 /// A refusal is an answer, so it never falls back to defaults.
@@ -1216,6 +1202,25 @@ fn a_refused_shared_open_fails() {
     source.deliver(Bus::Session, failed(calls[0].id, ACCESS_DENIED));
     let e = common::opened(&source, ticket).unwrap_err();
     assert_eq!(e.kind(), ErrorKind::Denied, "{e}");
+}
+
+/// A daemon that doesn't serve a shared namespace leaves it on its defaults.
+#[test]
+fn a_shared_namespace_the_daemon_does_not_serve_stays_on_defaults() {
+    let tree = Tree::new();
+    tree.install(DESKTOP);
+    let source = tree.source();
+    reach(&source);
+    let ticket = source.request_namespace(DESKTOP_NS);
+    let calls = source.take_calls(Bus::Session);
+    let unknown = "org.freedesktop.DBus.Error.UnknownObject";
+    source.deliver(Bus::Session, failed(calls[0].id, unknown));
+    let settings = common::opened(&source, ticket).unwrap();
+    assert_eq!(settings.state(), State::Defaults(Unserved::NotServed));
+    let e = settings
+        .apply(&[Edit::set("accent", text("red"))])
+        .unwrap_err();
+    assert_eq!(e.kind(), ErrorKind::Unknown, "{e}");
 }
 
 /// A daemon serving another version leaves a shared open on its defaults, saying so.
@@ -1233,7 +1238,11 @@ fn a_shared_open_at_another_version_stays_on_defaults() {
     let reply = subscribed(&newer, 1, &BTreeMap::new(), &[]);
     source.deliver(Bus::Session, answer(calls[0].id, reply));
     let settings = common::opened(&source, ticket).unwrap();
-    assert!(settings.on_defaults());
+    let served = Some(2);
+    assert_eq!(
+        settings.state(),
+        State::Defaults(Unserved::Version { served })
+    );
     let diagnostics = settings.diagnostics();
     let [conflict] = &*diagnostics else {
         panic!("{diagnostics:?}")
@@ -1242,24 +1251,8 @@ fn a_shared_open_at_another_version_stays_on_defaults() {
         conflict.is_error() && conflict.message().contains("v2"),
         "{conflict:?}"
     );
-}
-
-/// A daemon that starts later at another version leaves the defaults handle read-only.
-#[test]
-fn a_daemon_starting_at_another_version_leaves_the_defaults_read_only() {
-    let tree = Tree::new();
-    tree.install(DESKTOP);
-    let source = tree.source();
-    source.embed(DESKTOP_NS, DESKTOP);
-    let settings = open(&source, DESKTOP_NS).unwrap();
-    let calls = reach_bus(&source, Bus::Session);
-    let newer = DESKTOP.replace("version = 1", "version = 2");
-    let args = subscribed(&newer, 1, &BTreeMap::new(), &[]);
-    source.deliver(Bus::Session, answer(calls[0].id, args));
-    assert!(settings.on_defaults());
-    assert_eq!(settings.other_version(), Some(2));
     let refused = settings
-        .write(&[Edit::set("accent", text("red"))])
+        .apply(&[Edit::set("accent", text("red"))])
         .unwrap_err();
     assert_eq!(refused.kind(), ErrorKind::VersionConflict, "{refused}");
     assert!(

@@ -119,8 +119,9 @@ pub mxconfig::Event::Detached(mxconfig::Detach)
 pub mxconfig::Event::Diagnosed(alloc::vec::Vec<mxconfig_schema::error::Diagnostic>)
 pub mxconfig::Event::OpenFailed(mxconfig::Error)
 pub mxconfig::Event::Opened(T)
-pub mxconfig::Event::WriteFailed(mxconfig::Error)
-pub mxconfig::Event::Written
+pub mxconfig::Event::WriteFailed
+pub mxconfig::Event::WriteFailed::current: alloc::vec::Vec<<T as mxconfig::Namespace>::Change>
+pub mxconfig::Event::WriteFailed::error: mxconfig::Error
 #[non_exhaustive] pub enum mxconfig::LayerKind
 pub mxconfig::LayerKind::Admin
 pub mxconfig::LayerKind::User
@@ -157,21 +158,29 @@ pub mxconfig::Outcome::Opened::namespace: alloc::string::String
 pub mxconfig::Outcome::Opened::settings: mxconfig::Settings
 pub mxconfig::Outcome::Opened::ticket: mxconfig::TicketId
 pub mxconfig::Outcome::WriteFailed
+pub mxconfig::Outcome::WriteFailed::asset: core::option::Option<alloc::string::String>
+pub mxconfig::Outcome::WriteFailed::current: alloc::vec::Vec<mxconfig::Change>
 pub mxconfig::Outcome::WriteFailed::error: mxconfig::Error
 pub mxconfig::Outcome::WriteFailed::namespace: alloc::string::String
-pub mxconfig::Outcome::WriteFailed::ticket: mxconfig::TicketId
-pub mxconfig::Outcome::Written
-pub mxconfig::Outcome::Written::namespace: alloc::string::String
-pub mxconfig::Outcome::Written::ticket: mxconfig::TicketId
 impl mxconfig::Outcome
-pub fn mxconfig::Outcome::change<T: mxconfig::Namespace>(&self) -> core::option::Option<<T as mxconfig::Namespace>::Change>
 pub fn mxconfig::Outcome::event<T: mxconfig::Namespace>(&self) -> core::option::Option<mxconfig::Event<T>>
 pub fn mxconfig::Outcome::namespace(&self) -> &str
-#[non_exhaustive] pub enum mxconfig::Presence
-pub mxconfig::Presence::NoBus
-pub mxconfig::Presence::NoDaemon
-pub mxconfig::Presence::Running
-pub enum mxconfig::Write
+#[non_exhaustive] pub enum mxconfig::State
+pub mxconfig::State::Defaults(mxconfig::Unserved)
+pub mxconfig::State::Detached(mxconfig::Detach)
+pub mxconfig::State::Live
+pub mxconfig::State::ReadOnly
+pub mxconfig::State::ReadOnly::holder: u32
+impl core::fmt::Display for mxconfig::State
+pub fn mxconfig::State::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+#[non_exhaustive] pub enum mxconfig::Unserved
+pub mxconfig::Unserved::NoBus
+pub mxconfig::Unserved::NoDaemon
+pub mxconfig::Unserved::NotServed
+pub mxconfig::Unserved::Version
+pub mxconfig::Unserved::Version::served: core::option::Option<u32>
+impl core::fmt::Display for mxconfig::Unserved
+pub fn mxconfig::Unserved::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 #[non_exhaustive] pub struct mxconfig::Asset
 pub mxconfig::Asset::id: alloc::string::String
 pub mxconfig::Asset::origin: mxconfig::Origin
@@ -186,8 +195,8 @@ pub mxconfig::Change::revision: u64
 pub mxconfig::Change::value: core::option::Option<toml::value::Value>
 pub struct mxconfig::Edit
 impl mxconfig::Edit
+pub fn mxconfig::Edit::clear(impl core::convert::Into<alloc::string::String>) -> mxconfig::Edit
 pub fn mxconfig::Edit::key(&self) -> &str
-pub fn mxconfig::Edit::remove(impl core::convert::Into<alloc::string::String>) -> mxconfig::Edit
 pub fn mxconfig::Edit::set(impl core::convert::Into<alloc::string::String>, impl core::convert::Into<toml::value::Value>) -> mxconfig::Edit
 pub struct mxconfig::Error(_)
 impl mxconfig::Error
@@ -211,17 +220,15 @@ impl mxconfig::Settings
 pub fn mxconfig::Settings::asset(&self, &str) -> core::option::Option<mxconfig::Asset>
 pub fn mxconfig::Settings::describe(&self) -> alloc::rcs::arc::Arc<mxconfig_schema::schema::Schema>
 pub fn mxconfig::Settings::diagnostics(&self) -> alloc::vec::Vec<mxconfig_schema::error::Diagnostic>
-pub fn mxconfig::Settings::from_daemon(&self) -> bool
 pub fn mxconfig::Settings::get(&self, &str) -> core::option::Option<toml::value::Value>
-pub fn mxconfig::Settings::on_defaults(&self) -> bool
-pub fn mxconfig::Settings::other_version(&self) -> core::option::Option<u32>
 pub fn mxconfig::Settings::resolved(&self) -> mxconfig::Resolved
 pub fn mxconfig::Settings::revision(&self) -> u64
+pub fn mxconfig::Settings::state(&self) -> mxconfig::State
 impl mxconfig::Settings
-pub fn mxconfig::Settings::clear_asset(&self, &str) -> core::result::Result<mxconfig::Ticket<mxconfig::Write>, mxconfig::Error>
-pub fn mxconfig::Settings::write(&self, &[mxconfig::Edit]) -> core::result::Result<mxconfig::Ticket<mxconfig::Write>, mxconfig::Error>
-pub fn mxconfig::Settings::write_asset(&self, &str, &[u8]) -> core::result::Result<mxconfig::Ticket<mxconfig::Write>, mxconfig::Error>
-pub fn mxconfig::Settings::write_asset_from(&self, &str, std::os::fd::owned::OwnedFd) -> core::result::Result<mxconfig::Ticket<mxconfig::Write>, mxconfig::Error>
+pub fn mxconfig::Settings::remove_asset(&self, &str)
+pub fn mxconfig::Settings::write(&self, &[mxconfig::Edit])
+pub fn mxconfig::Settings::write_asset(&self, &str, &[u8])
+pub fn mxconfig::Settings::write_asset_from(&self, &str, std::os::fd::owned::OwnedFd)
 impl mxconfig::Settings
 pub fn mxconfig::Settings::with_manifest(self, &mxconfig::Manifest, mxconfig::Access) -> core::result::Result<mxconfig::Settings, mxconfig::Error>
 impl core::fmt::Debug for mxconfig::Settings
@@ -230,7 +237,6 @@ impl mxconfig::FromSettings for mxconfig::Settings
 pub fn mxconfig::Settings::from_settings(mxconfig::Settings) -> Self
 pub struct mxconfig::Source
 impl mxconfig::Source
-pub fn mxconfig::Source::daemon(&self, mxconfig::Bus) -> mxconfig::Presence
 pub fn mxconfig::Source::new() -> mxconfig::Source
 pub fn mxconfig::Source::outcomes(&self) -> alloc::vec::Vec<mxconfig::Outcome>
 pub fn mxconfig::Source::request<T: mxconfig::Namespace>(&self) -> mxconfig::Ticket<T>
@@ -254,8 +260,6 @@ pub fn mxconfig::Source::take_watch_dirs(&self) -> core::option::Option<alloc::v
 pub fn mxconfig::Source::touched(&self, &std::path::Path)
 pub fn mxconfig::Source::unreach(&self, mxconfig::Bus)
 pub struct mxconfig::Ticket<T>
-impl mxconfig::Ticket<mxconfig::Write>
-pub fn mxconfig::Ticket<mxconfig::Write>::written(&self, &mxconfig::Outcome) -> core::option::Option<core::result::Result<(), mxconfig::Error>>
 impl<T: mxconfig::FromSettings> mxconfig::Ticket<T>
 pub fn mxconfig::Ticket<T>::opened(&self, &mxconfig::Outcome) -> core::option::Option<core::result::Result<T, mxconfig::Error>>
 impl<T> mxconfig::Ticket<T>

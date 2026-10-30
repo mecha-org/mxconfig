@@ -95,7 +95,7 @@ fn set_validates_writes_and_reports_changes() {
     assert_eq!(settings.revision(), 1);
 
     // Removing reports the fallback. A key without a default becomes unset.
-    let changes = settings.remove("colors.accent").unwrap();
+    let changes = settings.clear("colors.accent").unwrap();
     assert_eq!(changes[0].value, Some(Value::String("#7aa2f7".into())));
     assert_eq!(
         settings.get("colors.accent"),
@@ -105,7 +105,7 @@ fn set_validates_writes_and_reports_changes() {
     settings
         .set("nickname", Value::String("aux".into()))
         .unwrap();
-    let changes = settings.remove("nickname").unwrap();
+    let changes = settings.clear("nickname").unwrap();
     assert_eq!(changes[0].value, None);
     assert_eq!(settings.get("nickname"), None);
 }
@@ -319,7 +319,7 @@ fn a_batch_sets_and_removes() {
     settings
         .apply(&[
             Edit::set("colors.corner_radius", Value::Integer(30)),
-            Edit::remove("colors.accent"),
+            Edit::clear("colors.accent"),
         ])
         .unwrap();
 
@@ -418,7 +418,7 @@ fn an_asset_resolves_across_layers() {
             ..
         }
     ));
-    settings.remove_asset("layout").unwrap();
+    settings.unset_asset("layout").unwrap();
     assert_eq!(settings.asset("layout").unwrap().text().unwrap(), "admin");
 }
 

@@ -8,9 +8,8 @@ use common::{BUS_NAME, Bus, DESKTOP, NAMESPACE, ZbusLink, apply, connect, linked
 use common::{opened, recorded, released, rename_edge, serve, served, try_open, user_file};
 use common::{within, written};
 use mxconfig::host::Roots;
-use mxconfig::{
-    Edit, Error, ErrorKind, Namespace, Outcome, Settings, Source, Table, Ticket, Value,
-};
+use mxconfig::{Edit, Error, ErrorKind, Namespace, Outcome, Settings, Source, State, Table};
+use mxconfig::{Unserved, Value};
 use mxconfig_daemon::Service;
 
 /// The player client an older build is generated from.
@@ -47,22 +46,16 @@ async fn open_typed<T: Namespace>(source: &Source, link: &mut ZbusLink) -> T {
     try_typed(source, link).await.unwrap()
 }
 
-/// Wait for a write started as `ticket` to land. Returns its result.
-async fn landed(
-    source: &Source,
-    link: &mut ZbusLink,
-    ticket: Result<Ticket<mxconfig::Write>, Error>,
-) -> Result<(), Error> {
-    let ticket = ticket?;
+/// Wait for the write just started to land. Returns its result.
+async fn landed(source: &Source, link: &mut ZbusLink) -> Result<(), Error> {
     link.settle().await;
-    written(source, ticket)
+    written(source)
 }
 
 /// Write `edits` through the daemon and wait for them to land.
 async fn write(settings: &Settings, link: &mut ZbusLink, edits: &[Edit]) {
-    landed(settings.source(), link, settings.write(edits))
-        .await
-        .unwrap();
+    settings.write(edits);
+    landed(settings.source(), link).await.unwrap();
 }
 
 /// Drop `handle`, let the source unsubscribe, and wait until `left` subscribers remain.
@@ -143,15 +136,12 @@ async fn v1_with_values(bus: &Bus, roots: &Roots) -> (Source, ZbusLink, v1::Play
     let (source, mut link) = linked(bus).await;
     let player = open_typed::<v1::Player>(&source, &mut link).await;
     let audio = player.audio();
-    landed(&source, &mut link, audio.set_volume(35))
-        .await
-        .unwrap();
-    landed(&source, &mut link, audio.set_delay("250"))
-        .await
-        .unwrap();
-    landed(&source, &mut link, audio.set_eq("rock"))
-        .await
-        .unwrap();
+    audio.set_volume(35);
+    landed(&source, &mut link).await.unwrap();
+    audio.set_delay("250");
+    landed(&source, &mut link).await.unwrap();
+    audio.set_eq("rock");
+    landed(&source, &mut link).await.unwrap();
     assert_eq!(recorded(roots, NAMESPACE), (1, vec![]), "stamped on write");
     (source, link, player)
 }
@@ -206,9 +196,8 @@ async fn an_update_waits_while_a_client_is_subscribed() {
     let audio = player.audio();
     assert_eq!(audio.volume(), 35);
     assert_eq!(audio.delay(), "250");
-    landed(&source, &mut link, audio.set_volume(36))
-        .await
-        .unwrap();
+    audio.set_volume(36);
+    landed(&source, &mut link).await.unwrap();
     assert_eq!(audio.volume(), 36);
     assert_eq!(
         at(&on_disk(&roots, NAMESPACE), "audio", "volume"),
@@ -223,8 +212,8 @@ async fn the_next_open_after_the_last_subscriber_migrates() {
         return;
     };
     let (source, mut link, player) = v1_with_values(&bus, &roots).await;
-    let output = player.audio().set_output(v1::AudioOutput::Hdmi);
-    landed(&source, &mut link, output).await.unwrap();
+    player.audio().set_output(v1::AudioOutput::Hdmi);
+    landed(&source, &mut link).await.unwrap();
     install(&roots, V2);
     release(player, &mut link, &service, NAMESPACE, 0).await;
 
@@ -243,9 +232,8 @@ async fn the_next_open_after_the_last_subscriber_migrates() {
     assert_eq!(at(&file, "audio", "level"), Some(&Value::Integer(35)));
 
     // A write after the update lands under the new schema.
-    landed(&source, &mut link, audio.set_level(40))
-        .await
-        .unwrap();
+    audio.set_level(40);
+    landed(&source, &mut link).await.unwrap();
     assert_eq!(
         at(&on_disk(&roots, NAMESPACE), "audio", "level"),
         Some(&Value::Integer(40))
@@ -329,9 +317,8 @@ async fn a_restart_keeps_serving_an_app_its_own_schema() {
     let audio = player.audio();
     assert_eq!(audio.volume(), 35);
     assert_eq!(audio.delay(), "250");
-    landed(&source, &mut link, audio.set_volume(36))
-        .await
-        .unwrap();
+    audio.set_volume(36);
+    landed(&source, &mut link).await.unwrap();
     assert_eq!(audio.volume(), 36);
     assert_eq!(recorded(&roots, NAMESPACE), (1, vec![]));
 
@@ -365,9 +352,13 @@ async fn a_client_of_an_older_shared_schema_stays_on_its_defaults() {
     let (source, mut link) = linked(&bus).await;
     source.embed(DESKTOP, common::DESKTOP_SCHEMA);
     let settings = try_open(&source, &mut link, DESKTOP).await.unwrap();
-    assert!(settings.on_defaults());
-    assert_eq!(settings.other_version(), Some(2));
-    let refused = settings.write(&[Edit::set("accent", "red")]).unwrap_err();
+    let served = Some(2);
+    assert_eq!(
+        settings.state(),
+        State::Defaults(Unserved::Version { served })
+    );
+    settings.write(&[Edit::set("accent", "red")]);
+    let refused = written(&source).unwrap_err();
     assert_eq!(refused.kind(), ErrorKind::VersionConflict, "{refused}");
 
     // A client reading none of the renamed keys reads the daemon's values.
@@ -377,7 +368,7 @@ async fn a_client_of_an_older_shared_schema_stays_on_its_defaults() {
         &format!("namespace = \"{DESKTOP}\"\nversion = 1\n"),
     );
     let settings = open(&source, &mut link, DESKTOP).await;
-    assert_eq!(settings.other_version(), Some(2));
+    assert_eq!(settings.state(), State::ReadOnly { holder: 2 });
 }
 
 /// A newer build is refused while an older one holds the namespace, and opens once it goes.
@@ -399,13 +390,10 @@ async fn a_newer_build_is_refused_while_an_older_one_holds() {
 
     // The older build is untouched and keeps working.
     assert_eq!(older.audio().volume(), 35);
-    landed(
-        older.settings().source(),
-        &mut old_link,
-        older.audio().set_mute(true),
-    )
-    .await
-    .unwrap();
+    older.audio().set_mute(true);
+    landed(older.settings().source(), &mut old_link)
+        .await
+        .unwrap();
     assert_eq!(recorded(&roots, NAMESPACE), (1, vec![]));
 
     // Once it goes, the newer build opens and migrates.
@@ -427,7 +415,7 @@ async fn a_local_holder_keeps_the_daemon_off_another_version() {
     let held = local
         .open_schema(mxconfig::Schema::parse(V1).unwrap())
         .unwrap();
-    held.write(&[Edit::set("audio.volume", 20)]).unwrap();
+    held.write(&[Edit::set("audio.volume", 20)]);
     install(&roots, V2);
 
     // A tool's write opens the installed v2, which the local v1 holder refuses.

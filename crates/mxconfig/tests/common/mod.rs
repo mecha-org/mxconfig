@@ -4,6 +4,7 @@
 
 use std::collections::BTreeMap;
 use std::fs;
+use std::os::fd::OwnedFd;
 use std::path::{Path, PathBuf};
 
 use mxconfig::host::Roots;
@@ -156,7 +157,9 @@ pub fn text(s: &str) -> Value {
 pub trait Through {
     fn apply(&self, edits: &[Edit]) -> Result<Vec<Change>, Error>;
     fn set_asset(&self, id: &str, bytes: &[u8]) -> Result<Vec<Change>, Error>;
-    fn remove_asset(&self, id: &str) -> Result<Vec<Change>, Error>;
+    fn set_asset_from(&self, id: &str, file: OwnedFd) -> Result<Vec<Change>, Error>;
+    /// Remove asset `id`. Named apart from `Settings::remove_asset`, which returns nothing.
+    fn unset_asset(&self, id: &str) -> Result<Vec<Change>, Error>;
     /// Rescan after files were changed outside.
     fn reload(&self) -> Vec<Change>;
 
@@ -164,25 +167,30 @@ pub trait Through {
         self.apply(&[Edit::set(key, value)])
     }
 
-    fn remove(&self, key: &str) -> Result<Vec<Change>, Error> {
-        self.apply(&[Edit::remove(key)])
+    fn clear(&self, key: &str) -> Result<Vec<Change>, Error> {
+        self.apply(&[Edit::clear(key)])
     }
 }
 
 impl Through for Settings {
     fn apply(&self, edits: &[Edit]) -> Result<Vec<Change>, Error> {
-        let ticket = self.write(edits)?;
-        landed(self.source(), |o| ticket.written(o))
+        self.write(edits);
+        landed(self.source())
     }
 
     fn set_asset(&self, id: &str, bytes: &[u8]) -> Result<Vec<Change>, Error> {
-        let ticket = self.write_asset(id, bytes)?;
-        landed(self.source(), |o| ticket.written(o))
+        self.write_asset(id, bytes);
+        landed(self.source())
     }
 
-    fn remove_asset(&self, id: &str) -> Result<Vec<Change>, Error> {
-        let ticket = self.clear_asset(id)?;
-        landed(self.source(), |o| ticket.written(o))
+    fn set_asset_from(&self, id: &str, file: OwnedFd) -> Result<Vec<Change>, Error> {
+        self.write_asset_from(id, file);
+        landed(self.source())
+    }
+
+    fn unset_asset(&self, id: &str) -> Result<Vec<Change>, Error> {
+        self.remove_asset(id);
+        landed(self.source())
     }
 
     fn reload(&self) -> Vec<Change> {
@@ -191,16 +199,14 @@ impl Through for Settings {
     }
 }
 
-/// The write's result and the changes it made.
-fn landed(
-    source: &Source,
-    written: impl Fn(&Outcome) -> Option<Result<(), Error>>,
-) -> Result<Vec<Change>, Error> {
+/// A local write's result and the changes it made. It lands at once.
+fn landed(source: &Source) -> Result<Vec<Change>, Error> {
     let outcomes = source.outcomes();
-    outcomes
-        .iter()
-        .find_map(written)
-        .expect("a local write lands at once")?;
+    for outcome in &outcomes {
+        if let Outcome::WriteFailed { error, .. } = outcome {
+            return Err(error.clone());
+        }
+    }
     Ok(changes(outcomes))
 }
 

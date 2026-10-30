@@ -4,9 +4,20 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dbus/dbus.dart';
+import 'package:mxconfig_dart/mxconfig.dart';
 
 /// mxconfigd's bus name.
 const busName = 'org.mechanix.MxConfig';
+
+/// Run [write] and wait for its change or failure. Returns the failure, if any.
+Future<WriteFailure?> landed(Settings settings, void Function() write) {
+  final done = Future.any([
+    settings.watchTyped((change) => change, (id) => id).first.then((_) => null),
+    settings.watchWriteFailed().first,
+  ]);
+  write();
+  return done.timeout(const Duration(seconds: 5));
+}
 
 /// Start a private session bus. Returns it and its address.
 Future<(Process, String)> startBus() async {

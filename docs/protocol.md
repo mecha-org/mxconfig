@@ -2,7 +2,7 @@
 
 The contract between `mxconfigd` and its clients. Every signature is in [`data/org.mechanix.MxConfig.xml`](../data/org.mechanix.MxConfig.xml), and a test checks the daemon serves exactly that.
 
-mxconfig's clients use `Subscribe`, `Apply`, `WriteAsset` and `ClearAsset`, and listen for `Changed` and `AssetChanged`. `ListNamespaces` tells a caller what it may reach.
+mxconfig's clients use `Subscribe`, `Apply`, `WriteAsset` and `RemoveAsset`, and listen for `Changed` and `AssetChanged`. `ListNamespaces` tells a caller what it may reach.
 
 ## Names
 
@@ -34,7 +34,7 @@ Text that is not one TOML value is refused with `InvalidArgs`.
 | `Apply(s namespace, a(sbs) edits, s app) → (t, a{sv})` | writers | Applies all edits or none. Returns the revision and every value after it. |
 | `Subscribe(s namespace, s schema, s app) → (h, s, t, a{sv}, a(ssh))` | readers | The subscription, then the schema text, revision, values and assets. Signals reach the caller while the subscription lasts. |
 | `WriteAsset(h file, s namespace, s id, s app)` | writers | Copies `file` as the user's copy of an asset. |
-| `ClearAsset(s namespace, s id, s app)` | writers | Removes the user's copy. |
+| `RemoveAsset(s namespace, s id, s app)` | writers | Removes the user's copy. |
 
 Every method takes `app`, the app the caller says it is, such as `org.example.player`. [Access](#access) says how it is used.
 

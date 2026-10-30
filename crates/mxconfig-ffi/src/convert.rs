@@ -2,18 +2,12 @@
 
 use std::os::fd::AsRawFd;
 
-use anyhow::Result;
 use mxconfig::runtime::Drive;
 use mxconfig::runtime::wire::{Arg, Call};
-use mxconfig::{Bus, Detach, Edit, Outcome, Settings, Source};
+use mxconfig::{Bus, Detach, Outcome, Source, State, Unserved};
 
 use crate::api::source::{DetachCause, MxArg, MxArgKind, MxCall, MxOutcome, MxOutcomeKind};
-use crate::api::{Change, Diagnostic, MxSettings, MxconfigException};
-
-/// Start one edit. Returns the ticket its `written` outcome carries.
-pub(crate) fn write(settings: &Settings, edit: Edit) -> Result<u64, MxconfigException> {
-    Ok(settings.write(&[edit])?.id().into())
-}
+use crate::api::{Change, Diagnostic, MxSettings, MxState, MxStateKind, MxUnserved};
 
 /// `d` for Dart.
 pub(crate) fn mx_diagnostic(d: &mxconfig::Diagnostic) -> Diagnostic {
@@ -34,6 +28,7 @@ pub(crate) fn mx_outcome(outcome: Outcome) -> Option<MxOutcome> {
         error: None,
         detach: None,
         diagnostics: Vec::new(),
+        current: Vec::new(),
         namespace: String::new(),
         asset: None,
     };
@@ -59,20 +54,18 @@ pub(crate) fn mx_outcome(outcome: Outcome) -> Option<MxOutcome> {
             namespace,
             ..blank(MxOutcomeKind::Opened)
         },
-        Outcome::Written { ticket, namespace } => MxOutcome {
-            ticket: ticket.into(),
-            namespace,
-            ..blank(MxOutcomeKind::Written)
-        },
         Outcome::WriteFailed {
-            ticket,
             namespace,
             error,
+            current,
+            asset,
+            ..
         } => MxOutcome {
-            ticket: ticket.into(),
             error: Some(error.into()),
+            current: current.into_iter().map(mx_change).collect(),
             namespace,
-            ..blank(MxOutcomeKind::Written)
+            asset,
+            ..blank(MxOutcomeKind::WriteFailed)
         },
         Outcome::Changed(change) => MxOutcome {
             namespace: change.namespace.clone(),
@@ -86,11 +79,7 @@ pub(crate) fn mx_outcome(outcome: Outcome) -> Option<MxOutcome> {
         },
         Outcome::Detached { namespace, cause } => MxOutcome {
             namespace,
-            detach: Some(match cause {
-                Detach::Moved => DetachCause::Moved,
-                // A cause added later reads as a transport close: open it again.
-                _ => DetachCause::Closed,
-            }),
+            detach: Some(detach_cause(cause)),
             ..blank(MxOutcomeKind::Detached)
         },
         Outcome::Diagnosed {
@@ -105,6 +94,50 @@ pub(crate) fn mx_outcome(outcome: Outcome) -> Option<MxOutcome> {
         _ => return None,
     };
     Some(outcome)
+}
+
+fn detach_cause(cause: Detach) -> DetachCause {
+    match cause {
+        Detach::Moved => DetachCause::Moved,
+        // A cause added later reads as a transport close: open it again.
+        _ => DetachCause::Closed,
+    }
+}
+
+/// `state` for Dart.
+pub(crate) fn mx_state(state: State) -> MxState {
+    let blank = |kind| MxState {
+        kind,
+        version: None,
+        unserved: None,
+        detach: None,
+    };
+    match state {
+        State::ReadOnly { holder } => MxState {
+            version: Some(holder),
+            ..blank(MxStateKind::ReadOnly)
+        },
+        State::Defaults(why) => {
+            let (unserved, version) = match why {
+                Unserved::NoBus => (MxUnserved::NoBus, None),
+                Unserved::NoDaemon => (MxUnserved::NoDaemon, None),
+                Unserved::Version { served } => (MxUnserved::Version, served),
+                // A reason added later reads as an unserved namespace.
+                _ => (MxUnserved::NotServed, None),
+            };
+            MxState {
+                version,
+                unserved: Some(unserved),
+                ..blank(MxStateKind::Defaults)
+            }
+        }
+        State::Detached(cause) => MxState {
+            detach: Some(detach_cause(cause)),
+            ..blank(MxStateKind::Detached)
+        },
+        // A state added later reads as live.
+        _ => blank(MxStateKind::Live),
+    }
 }
 
 pub(crate) fn mx_call(call: &Call) -> MxCall {
