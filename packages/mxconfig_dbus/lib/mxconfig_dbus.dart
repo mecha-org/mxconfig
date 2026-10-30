@@ -62,11 +62,11 @@ class DBusTransport implements Transport {
   }
 
   @override
-  Future<void> carry(Driven from) async {
+  void carry(Driven from) {
     _from = from;
     from.transport.reach(bus: _bus);
     // Ask who owns the daemon's name now, not at the next open.
-    await Future.wait(_send(from));
+    flush();
   }
 
   @override

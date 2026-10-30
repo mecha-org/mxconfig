@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use common::{Through, at, edge, key};
 use mxconfig::host::Roots;
 use mxconfig::runtime::Drive;
-use mxconfig::{Detach, Edit, Error, ErrorKind, Outcome, Schema, Settings, Source, Value};
+use mxconfig::{Detach, Edit, Error, ErrorKind, Outcome, Schema, Settings, Source, State, Value};
 
 const NS: &str = "org.example.app";
 
@@ -274,9 +274,9 @@ fn another_version_reading_untouched_names_only_reads() {
     let reader = Source::with_roots(roots.clone())
         .open_schema(newer)
         .unwrap();
-    assert_eq!(reader.other_version(), Some(1));
+    assert_eq!(reader.state(), State::ReadOnly { holder: 1 });
     assert_eq!(reader.get("depth"), Some(Value::Integer(4)));
-    let refused = reader.write(&[Edit::set("depth", 5)]).unwrap_err();
+    let refused = reader.apply(&[Edit::set("depth", 5)]).unwrap_err();
     assert!(conflict(&refused, 1, 2), "{refused}");
     assert_eq!(older.get("depth"), Some(Value::Integer(4)));
 }

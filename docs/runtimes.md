@@ -16,7 +16,7 @@ A `Source` never blocks, spawns threads or polls. A runtime moves data in and ou
 | `inotify_fd()` | Watches this fd, with a read armed on it or a readiness source. |
 | `feed_inotify(&bytes)` | Hands over each read. Only the namespaces it concerns are re-read. |
 | `take_watch_dirs()`, `touched(path)`, `rescan()` | Used instead of the fd by a runtime with its own file watcher, like Dart's. |
-| `reach(bus)`, `unreach(bus)` | Says it can, or can no longer, carry calls on a bus. Without a bus, app namespaces stay on files and shared ones on their defaults. |
+| `reach(bus)`, `unreach(bus)` | Says it can, or can no longer, carry calls on a bus. Without a bus, app namespaces stay on files and shared ones open on their defaults, for good. Reach buses before the app opens anything. |
 | `close(bus)` | Lets go of a bus whose connection stays open. Handles that followed the daemon detach, ending their subscriptions. |
 | `take_calls(bus)` | Takes the calls to send. |
 | `deliver(bus, event)` | Hands back each reply, error and matched signal, in arrival order. |
@@ -31,6 +31,7 @@ Each outcome is about one namespace. For each client type the app requested in i
 - Each `request` is answered by one `Opened` or `OpenFailed`, carrying the request's ticket. Give it only to the client type that made that request, since two client types of one namespace can get different answers.
 - Every other outcome goes to every client type of its namespace.
 - `Diagnosed` is the same for every client type, so log it once per outcome.
+- A write that lands shows as `Changed`. One that fails is `WriteFailed`, with what the keys it touched hold now.
 
 ## Carrying the bus
 

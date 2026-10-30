@@ -3,10 +3,11 @@
 
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
+import 'api/source.dart';
 import 'frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MxSettings>>
 abstract class MxSettings implements RustOpaqueInterface {
@@ -16,14 +17,14 @@ abstract class MxSettings implements RustOpaqueInterface {
   /// Fail unless `manifest_toml` grants the access.
   void authorize({required String manifestToml, required bool write});
 
+  /// Unset `key`, so a lower layer or the default applies.
+  void clear({required String key});
+
   /// The schema, for settings UIs.
   Describe describe();
 
   /// Problems found while opening, migrating and reading.
   List<Diagnostic> diagnostics();
-
-  /// Whether the values come from the daemon rather than this process's own reads.
-  bool fromDaemon();
 
   bool? getBool({required String key});
 
@@ -39,37 +40,32 @@ abstract class MxSettings implements RustOpaqueInterface {
 
   String namespace();
 
-  /// Whether a shared namespace still holds its schema defaults.
-  bool onDefaults();
-
-  /// The version holding the namespace, when it isn't this handle's. The handle then only reads.
-  int? otherVersion();
-
-  /// Unset `key`, so a lower layer or the default applies.
-  BigInt remove({required String key});
-
-  /// Remove the user's copy of asset `id`. Returns the write's ticket.
-  BigInt removeAsset({required String id});
+  /// Remove the user's copy of asset `id`.
+  void removeAsset({required String id});
 
   /// Raised by each batch of changes. A daemon restart starts it over.
   BigInt revision();
 
-  /// Write the user's copy of asset `id`. Returns the write's ticket.
-  BigInt setAsset({required String id, required List<int> bytes});
+  /// Write the user's copy of asset `id`.
+  void setAsset({required String id, required List<int> bytes});
 
-  /// Copy the file at `path` as the user's copy of asset `id`.
-  BigInt setAssetFile({required String id, required String path});
+  /// Copy the file at `path` as the user's copy of asset `id`. Throws if it can't be opened.
+  void setAssetFile({required String id, required String path});
 
-  BigInt setBool({required String key, required bool value});
+  void setBool({required String key, required bool value});
 
-  BigInt setDouble({required String key, required double value});
+  void setDouble({required String key, required double value});
 
-  BigInt setInt({required String key, required PlatformInt64 value});
+  void setInt({required String key, required PlatformInt64 value});
 
-  BigInt setString({required String key, required String value});
+  /// Write `value` to `key`. A failure arrives as a `WriteFailed` outcome.
+  void setString({required String key, required String value});
 
-  /// Write a TOML value such as `35` or `[1, 2]` to `key`.
-  BigInt setToml({required String key, required String value});
+  /// Write a TOML value such as `35` or `[1, 2]` to `key`. Throws if it isn't TOML.
+  void setToml({required String key, required String value});
+
+  /// What this handle holds, and whether it can write.
+  MxState state();
 }
 
 /// One effective value that changed.
@@ -296,6 +292,73 @@ class KeyInfo {
           maxLength == other.maxLength &&
           env == other.env &&
           managed == other.managed;
+}
+
+/// What a handle holds, and whether it can write. `kind` says which fields are set.
+class MxState {
+  final MxStateKind kind;
+
+  /// The holding version when read-only, or the served one when on defaults.
+  final int? version;
+
+  /// Why it holds its defaults.
+  final MxUnserved? unserved;
+
+  /// Why it stopped following its namespace.
+  final DetachCause? detach;
+
+  const MxState({
+    required this.kind,
+    this.version,
+    this.unserved,
+    this.detach,
+  });
+
+  @override
+  int get hashCode =>
+      kind.hashCode ^ version.hashCode ^ unserved.hashCode ^ detach.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MxState &&
+          runtimeType == other.runtimeType &&
+          kind == other.kind &&
+          version == other.version &&
+          unserved == other.unserved &&
+          detach == other.detach;
+}
+
+/// The kind of an [`MxState`].
+enum MxStateKind {
+  /// The namespace's real values. Writes can go through.
+  live,
+
+  /// Real values, but another schema version holds the namespace. Writes fail.
+  readOnly,
+
+  /// The schema's defaults, because no daemon serves the namespace. Writes fail.
+  defaults,
+
+  /// No longer following the namespace. Writes fail.
+  detached,
+  ;
+}
+
+/// Why a shared namespace holds its schema defaults.
+enum MxUnserved {
+  /// No transport carries the bus.
+  noBus,
+
+  /// The bus is there, but mxconfigd isn't.
+  noDaemon,
+
+  /// mxconfigd runs, but doesn't serve this namespace.
+  notServed,
+
+  /// mxconfigd serves a schema version this client can't read.
+  version,
+  ;
 }
 
 /// An open or write that failed: its message, and what it means for the caller.

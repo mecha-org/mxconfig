@@ -72,16 +72,16 @@ env = "MECHANIX_DEMO_SCALE"
 
 For `org.mechanix.demo`:
 
-- **`Demo`**, the handle. It has one accessor per group, such as `colors()`, and `settings()`, the untyped `Settings` underneath, for the schema, revision and diagnostics. `Settings::from_daemon()` says whether its values come through the daemon.
-- **`Colors`**, with `accent()`, `set_accent(..)` and `clear_accent()` for each key. A managed key only has the getter. Setters check the value at once and return a write ticket.
+- **`Demo`**, the handle. It has one accessor per group, such as `colors()`, and `settings()`, the untyped `Settings` underneath, for the schema, revision, diagnostics and [state](#handle-state).
+- **`Colors`**, with `accent()`, `set_accent(..)` and `clear_accent()` for each key. A managed key only has the getter. Setters return nothing: the result arrives as an event.
 - **`DemoChange`**, one variant per key with its type, such as `ColorsAccent(String)`, plus `Asset<Id>` for each asset.
 - **`ColorsMode`**, a real enum with `as_str()` and `parse()`.
 - **Return types:** keys with a default return `T`. Keys without one return `Option<T>`, or `T?` in Dart. Arrays return `Vec<mxconfig::Value>`, and maps `mxconfig::Table`.
-- **Per asset:** `asset_<id>()`, plus `set_asset_<id>()`, `set_asset_<id>_from()` and `clear_asset_<id>()` unless it's managed.
+- **Per asset:** `asset_<id>()`, plus `set_asset_<id>()`, `set_asset_<id>_from()` and `remove_asset_<id>()` unless it's managed.
 
 In Dart:
 
-- Names are camelCase, and setters return futures.
+- Names are camelCase, and setters return nothing, as in Rust.
 - There is no file-descriptor asset setter.
 - Enums have `value` and `parse()`.
 - Each change class holds the new value as `value`, and prints as its key and value.
@@ -108,13 +108,16 @@ Only keys are trimmed; every asset stays. A trimmed client keeps working with an
 | --- | --- |
 | `Opened(Demo)` | The namespace opened: in the same turn from files, or once the daemon replies. |
 | `OpenFailed(error)` | The namespace didn't open. |
-| `Changed(DemoChange)` | A value or asset changed, whoever changed it. |
-| `Written` | A write landed. |
-| `WriteFailed(error)` | A write was refused, or may not have landed. |
+| `Changed(DemoChange)` | A value or asset changed, whoever changed it. A write that lands arrives this way. |
+| `WriteFailed { error, current }` | A write was refused, or may not have landed. |
 | `Detached(cause)` | The handle stopped following its namespace. It keeps its values and refuses writes. |
 | `Diagnosed(diagnostics)` | The namespace has new problems: right after it opens, then after any change that brings new ones. Each is reported once. Log them. |
 
-Under it, `source.outcomes()` returns every namespace's outcomes as plain `Outcome`s. Runtime integrations use them directly. An app that needs to know which write failed keeps the `Ticket` a setter returns, and finds its outcome with `Ticket::written`.
+Every write failure arrives as `WriteFailed`, a bad value included. `current` holds what each key or asset the write touched holds now, as `DemoChange`s. A UI shows them like any `Changed` to put its controls back. A write that changes nothing raises nothing.
+
+A failure names the keys it touched, not the call. Two writes in flight to one key can't be told apart, and don't need to be: `current` is the key's value either way, and a write that lands later arrives as `Changed`.
+
+Under it, `source.outcomes()` returns every namespace's outcomes as plain `Outcome`s. Runtime integrations use them directly.
 
 A handle detaches for one of two reasons:
 
@@ -138,6 +141,28 @@ A handle detaches for one of two reasons:
 
 After `Unconfirmed`, compare the handle's values with the edits before writing again. A handle that stays attached follows what the daemon holds.
 
+## Handle state
+
+`settings.state()` says what a handle holds and whether it can write. Check it once the handle opens:
+
+| State | Values | Writes |
+| --- | --- | --- |
+| `Live` | The namespace's own. | Go through. |
+| `ReadOnly { holder }` | The namespace's own, while schema version `holder` holds it. | Fail with `VersionConflict`. |
+| `Defaults(why)` | The schema's defaults, as no daemon serves this shared namespace. | Fail. |
+| `Detached(cause)` | The last ones it had. | Fail with `Detached`. |
+
+`why` is an `Unserved`:
+
+- **`NoBus`:** no transport carries the bus.
+- **`NoDaemon`:** the bus is there, but mxconfigd isn't.
+- **`NotServed`:** mxconfigd runs, but doesn't serve the namespace.
+- **`Version { served }`:** mxconfigd serves a schema version this client can't read.
+
+A handle on its defaults stays on them. Restart the app to pick up a daemon that starts later.
+
+`State` and `Unserved` may gain variants, and both print as one plain sentence for a UI or a log.
+
 ## The Dart settings API
 
 Under each generated class is a `Settings`, as `demo.settings`. `Settings.open(namespace, schema:)` is what `Demo.open()` calls. `Settings.openIn` opens over one user directory, for tests and embedding.
@@ -146,26 +171,36 @@ Under each generated class is a `Settings`, as `demo.settings`. `Settings.open(n
 final settings = demo.settings;  // or: await Settings.openIn(userDir: dir, schemaToml: schema)
 
 settings.getString('colors.accent');   // also getInt, getDouble, getBool, getToml
-await settings.setString('colors.accent', '#ff0000');
-await settings.remove('colors.accent');
+settings.setString('colors.accent', '#ff0000');
+settings.clear('colors.accent');
 
 settings.asset('layout');              // Uint8List?, null when nothing sets it
-await settings.setAsset('layout', bytes);
-await settings.setAssetFromFile('layout', path);
-await settings.removeAsset('layout');
+settings.setAsset('layout', bytes);
+settings.setAssetFromFile('layout', path);
+settings.removeAsset('layout');
 
 settings.describe;
 settings.diagnostics;
 settings.watch();
 settings.watchAssets();
+settings.watchWriteFailed();           // a WriteFailure per failed write
 settings.watchDetached();              // DetachCause.moved or .closed
-settings.onDefaults;                   // a shared namespace still on its schema defaults
-settings.fromDaemon;                   // its values come through the daemon
-await Settings.daemon(bus: 'session'); // DaemonPresence.noBus, .noDaemon or .running
+settings.state;                        // a SettingsState
 settings.dispose();
 ```
 
-A refused write fails its future with an `MxconfigException`. Its `versionConflict`, `otherVersion`, `detached` and `unconfirmed` fields match the [error kinds](#events-and-errors).
+Setters return nothing, as in Rust. A write's values arrive on `watch()` or `watchAssets()`, like anyone else's. A failed write arrives on `watchWriteFailed()` as a `WriteFailure`: its `error`, the `current` value of each key it touched, and the `asset` it touched, if any. The error's `versionConflict`, `otherVersion`, `detached` and `unconfirmed` fields match the [error kinds](#events-and-errors). Only `setToml` and `setAssetFromFile` throw, for text that isn't TOML or a file that can't be opened.
+
+`settings.state` is a sealed `SettingsState`, matching [handle state](#handle-state):
+
+```dart
+switch (settings.state) {
+  case LiveState():
+  case ReadOnlyState(:final holder):
+  case DefaultsState(:final why):      // why is an Unserved, such as Unserved.noDaemon
+  case DetachedState(:final cause):
+}
+```
 
 ## Public and internal API
 
@@ -191,12 +226,12 @@ env = "MECHANIX_DEMO_LAYOUT"  # optional: an absolute path that wins
 if let Some(asset) = settings.asset("layout") {
     let text = asset.text()?;            // asset.origin says which layer
 }
-settings.write_asset("layout", bytes)?;  // the user's copy
-settings.write_asset_from("layout", fd)?;
-settings.clear_asset("layout")?;         // a lower layer applies again
+settings.write_asset("layout", bytes);  // the user's copy
+settings.write_asset_from("layout", fd);
+settings.remove_asset("layout");         // a lower layer applies again
 ```
 
-- Every write, and any edit made outside the app, arrives as `Event::Changed`, such as `DemoChange::AssetLayout`.
+- Every write, and any edit made outside the app, arrives as `Event::Changed`, such as `DemoChange::AssetLayout`. A failed one is `Event::WriteFailed`.
 - When no layer has the file, `asset()` returns `None`, and the app falls back to what it embeds.
 - A file from outside arrives as an fd, never as a path to keep. A sandboxed app picks one through the file-chooser portal and passes its fd to `write_asset_from`, which makes a copy the user owns.
 - Through the daemon, the fd is passed over D-Bus unread. It must be a regular file of at most 64 MiB.

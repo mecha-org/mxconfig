@@ -130,8 +130,8 @@ void main() {
       const namespace = 'org.mechanix.sound';
       final settings =
           await Settings.open(namespace, schema: schema(namespace, 1));
-      expect(settings.fromDaemon, isTrue);
-      await settings.setInt('volume', 35);
+      expect(settings.state, isA<LiveState>());
+      await landed(settings, () => settings.setInt('volume', 35));
       final before = settings.revision;
 
       // The daemon restarts with v2 installed, and the v1 handle subscribes again.
@@ -140,7 +140,7 @@ void main() {
 
       // Its own schema is trusted, so every key works and the file stays on v1.
       expect(settings.getInt('volume'), 35);
-      await settings.setInt('volume', 36);
+      await landed(settings, () => settings.setInt('volume', 36));
       expect(settings.getInt('volume'), 36);
       expect(userFile(namespace), contains('volume = 36'));
     });
@@ -169,7 +169,7 @@ void main() {
       const namespace = 'org.mechanix.chime';
       final settings =
           await Settings.open(namespace, schema: schema(namespace, 1));
-      await settings.setInt('volume', 35);
+      await landed(settings, () => settings.setInt('volume', 35));
       final before = settings.revision;
 
       // A v2 process holds the namespace while the daemon restarts.
@@ -188,10 +188,9 @@ void main() {
 
       // It keeps the value it had, never a default, and refuses writes.
       expect(settings.getInt('volume'), 35);
-      await expectLater(
-          settings.setInt('volume', 10),
-          throwsA(isA<MxconfigException>()
-              .having((e) => e.detached, 'detached', isTrue)));
+      final failed =
+          await landed(settings, () => settings.setInt('volume', 10));
+      expect(failed?.error.detached, isTrue);
       holder.kill();
       await holder.exitCode;
     });
@@ -200,7 +199,7 @@ void main() {
       const namespace = 'org.mechanix.gong';
       final settings =
           await Settings.open(namespace, schema: schema(namespace, 1));
-      await settings.setInt('volume', 35);
+      await landed(settings, () => settings.setInt('volume', 35));
       settings.dispose();
 
       // Nothing holds v1 any more, so v2 opens and migrates the file.
@@ -214,17 +213,16 @@ void main() {
       const namespace = 'org.mechanix.bell';
       final settings =
           await Settings.open(namespace, schema: schema(namespace, 1));
-      await settings.setInt('volume', 35);
+      await landed(settings, () => settings.setInt('volume', 35));
       final detached = settings.watchDetached().first;
 
       await transport.close();
       expect(await detached.timeout(const Duration(seconds: 10)),
           DetachCause.closed);
       expect(settings.getInt('volume'), 35, reason: 'it keeps its values');
-      await expectLater(
-          settings.setInt('volume', 10),
-          throwsA(isA<MxconfigException>()
-              .having((e) => e.detached, 'detached', isTrue)));
+      final failed =
+          await landed(settings, () => settings.setInt('volume', 10));
+      expect(failed?.error.detached, isTrue);
 
       // The hold is gone, so another version may now open the namespace.
       await subscribeOnceReleased(namespace, 2);

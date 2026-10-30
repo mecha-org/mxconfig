@@ -6,7 +6,8 @@ use flutter_rust_bridge::frb;
 use mxconfig::{Access, Manifest};
 use mxconfig::{Edit, ErrorKind, Settings, Value};
 
-use crate::convert::{mx_diagnostic, write};
+use crate::api::source::DetachCause;
+use crate::convert::{mx_diagnostic, mx_state};
 
 pub mod source;
 
@@ -110,37 +111,39 @@ impl MxSettings {
         self.inner.get(&key).map(|value| value.to_string())
     }
 
+    /// Write `value` to `key`. A failure arrives as a `WriteFailed` outcome.
     #[frb(sync)]
-    pub fn set_string(&self, key: String, value: String) -> Result<u64, MxconfigException> {
-        write(&self.inner, Edit::set(key, Value::String(value)))
+    pub fn set_string(&self, key: String, value: String) {
+        self.inner.write(&[Edit::set(key, Value::String(value))]);
     }
 
     #[frb(sync)]
-    pub fn set_int(&self, key: String, value: i64) -> Result<u64, MxconfigException> {
-        write(&self.inner, Edit::set(key, Value::Integer(value)))
+    pub fn set_int(&self, key: String, value: i64) {
+        self.inner.write(&[Edit::set(key, Value::Integer(value))]);
     }
 
     #[frb(sync)]
-    pub fn set_double(&self, key: String, value: f64) -> Result<u64, MxconfigException> {
-        write(&self.inner, Edit::set(key, Value::Float(value)))
+    pub fn set_double(&self, key: String, value: f64) {
+        self.inner.write(&[Edit::set(key, Value::Float(value))]);
     }
 
     #[frb(sync)]
-    pub fn set_bool(&self, key: String, value: bool) -> Result<u64, MxconfigException> {
-        write(&self.inner, Edit::set(key, Value::Boolean(value)))
+    pub fn set_bool(&self, key: String, value: bool) {
+        self.inner.write(&[Edit::set(key, Value::Boolean(value))]);
     }
 
-    /// Write a TOML value such as `35` or `[1, 2]` to `key`.
+    /// Write a TOML value such as `35` or `[1, 2]` to `key`. Throws if it isn't TOML.
     #[frb(sync)]
-    pub fn set_toml(&self, key: String, value: String) -> Result<u64, MxconfigException> {
+    pub fn set_toml(&self, key: String, value: String) -> Result<(), MxconfigException> {
         let value = mxconfig::value::from_toml_str(&value).map_err(mxconfig::Error::from)?;
-        write(&self.inner, Edit::set(key, value))
+        self.inner.write(&[Edit::set(key, value)]);
+        Ok(())
     }
 
     /// Unset `key`, so a lower layer or the default applies.
     #[frb(sync)]
-    pub fn remove(&self, key: String) -> Result<u64, MxconfigException> {
-        write(&self.inner, Edit::remove(key))
+    pub fn clear(&self, key: String) {
+        self.inner.write(&[Edit::clear(key)]);
     }
 
     /// The bytes of asset `id`, or `null` when nothing sets it.
@@ -149,23 +152,24 @@ impl MxSettings {
         self.inner.asset(&id)?.read().ok()
     }
 
-    /// Write the user's copy of asset `id`. Returns the write's ticket.
+    /// Write the user's copy of asset `id`.
     #[frb(sync)]
-    pub fn set_asset(&self, id: String, bytes: Vec<u8>) -> Result<u64, MxconfigException> {
-        Ok(self.inner.write_asset(&id, &bytes)?.id().into())
+    pub fn set_asset(&self, id: String, bytes: Vec<u8>) {
+        self.inner.write_asset(&id, &bytes);
     }
 
-    /// Copy the file at `path` as the user's copy of asset `id`.
+    /// Copy the file at `path` as the user's copy of asset `id`. Throws if it can't be opened.
     #[frb(sync)]
-    pub fn set_asset_file(&self, id: String, path: String) -> Result<u64, MxconfigException> {
+    pub fn set_asset_file(&self, id: String, path: String) -> Result<(), MxconfigException> {
         let file = std::fs::File::open(&path).with_context(|| format!("opening {path}"))?;
-        Ok(self.inner.write_asset_from(&id, file.into())?.id().into())
+        self.inner.write_asset_from(&id, file.into());
+        Ok(())
     }
 
-    /// Remove the user's copy of asset `id`. Returns the write's ticket.
+    /// Remove the user's copy of asset `id`.
     #[frb(sync)]
-    pub fn remove_asset(&self, id: String) -> Result<u64, MxconfigException> {
-        Ok(self.inner.clear_asset(&id)?.id().into())
+    pub fn remove_asset(&self, id: String) {
+        self.inner.remove_asset(&id);
     }
 
     /// Problems found while opening, migrating and reading.
@@ -216,23 +220,49 @@ impl MxSettings {
         }
     }
 
-    /// Whether the values come from the daemon rather than this process's own reads.
+    /// What this handle holds, and whether it can write.
     #[frb(sync)]
-    pub fn from_daemon(&self) -> bool {
-        self.inner.from_daemon()
+    pub fn state(&self) -> MxState {
+        mx_state(self.inner.state())
     }
+}
 
-    /// Whether a shared namespace still holds its schema defaults.
-    #[frb(sync)]
-    pub fn on_defaults(&self) -> bool {
-        self.inner.on_defaults()
-    }
+/// What a handle holds, and whether it can write. `kind` says which fields are set.
+#[derive(Debug)]
+pub struct MxState {
+    pub kind: MxStateKind,
+    /// The holding version when read-only, or the served one when on defaults.
+    pub version: Option<u32>,
+    /// Why it holds its defaults.
+    pub unserved: Option<MxUnserved>,
+    /// Why it stopped following its namespace.
+    pub detach: Option<DetachCause>,
+}
 
-    /// The version holding the namespace, when it isn't this handle's. The handle then only reads.
-    #[frb(sync)]
-    pub fn other_version(&self) -> Option<u32> {
-        self.inner.other_version()
-    }
+/// The kind of an [`MxState`].
+#[derive(Debug)]
+pub enum MxStateKind {
+    /// The namespace's real values. Writes can go through.
+    Live,
+    /// Real values, but another schema version holds the namespace. Writes fail.
+    ReadOnly,
+    /// The schema's defaults, because no daemon serves the namespace. Writes fail.
+    Defaults,
+    /// No longer following the namespace. Writes fail.
+    Detached,
+}
+
+/// Why a shared namespace holds its schema defaults.
+#[derive(Debug)]
+pub enum MxUnserved {
+    /// No transport carries the bus.
+    NoBus,
+    /// The bus is there, but mxconfigd isn't.
+    NoDaemon,
+    /// mxconfigd runs, but doesn't serve this namespace.
+    NotServed,
+    /// mxconfigd serves a schema version this client can't read.
+    Version,
 }
 
 /// One effective value that changed.

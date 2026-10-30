@@ -11,9 +11,9 @@ use crate::error::{Diagnostic, Error, ErrorKind, Kind};
 use crate::paths::Roots;
 use crate::resolve::Resolved;
 use crate::runtime::Drive;
-use crate::settings::{Edit, Settings, Side, sides};
+use crate::settings::{Edit, Settings, Side, Unserved, sides};
 use crate::space::{Key, Space};
-use crate::transport::{self, Bus, Change, Kept, Presence, Released, Served};
+use crate::transport::{self, Bus, Change, Kept, Released, Served};
 use crate::watch::{self, Concern, Targets, Watches};
 use crate::wire;
 use crate::wire::{Arg, Call, Heard, State};
@@ -69,13 +69,14 @@ pub enum Outcome {
         namespace: String,
         error: Error,
     },
-    /// A write to `namespace` landed. Its changes arrive as `Changed`.
-    Written { ticket: TicketId, namespace: String },
     /// A write to `namespace` was refused or may not have landed.
     WriteFailed {
-        ticket: TicketId,
         namespace: String,
         error: Error,
+        /// The value each key the write touched holds now.
+        current: Vec<Change>,
+        /// The id of the asset the write touched, if it wrote one.
+        asset: Option<String>,
     },
     /// A value changed.
     Changed(Change),
@@ -96,23 +97,11 @@ impl Outcome {
         match self {
             Outcome::Opened { namespace, .. }
             | Outcome::OpenFailed { namespace, .. }
-            | Outcome::Written { namespace, .. }
             | Outcome::WriteFailed { namespace, .. }
             | Outcome::AssetChanged { namespace, .. }
             | Outcome::Detached { namespace, .. }
             | Outcome::Diagnosed { namespace, .. } => namespace,
             Outcome::Changed(change) => &change.namespace,
-        }
-    }
-
-    /// This outcome as a typed change of `T`, if it is one.
-    pub fn change<T: Namespace>(&self) -> Option<T::Change> {
-        match self {
-            Outcome::Changed(change) if change.namespace == T::NAMESPACE => T::change(change),
-            Outcome::AssetChanged { namespace, id } if namespace == T::NAMESPACE => {
-                T::asset_change(id)
-            }
-            _ => None,
         }
     }
 
@@ -124,13 +113,23 @@ impl Outcome {
         Some(match self {
             Outcome::Opened { settings, .. } => Event::Opened(T::from_settings(settings.clone())),
             Outcome::OpenFailed { error, .. } => Event::OpenFailed(error.clone()),
-            Outcome::Written { .. } => Event::Written,
-            Outcome::WriteFailed { error, .. } => Event::WriteFailed(error.clone()),
+            Outcome::WriteFailed {
+                error,
+                current,
+                asset,
+                ..
+            } => Event::WriteFailed {
+                error: error.clone(),
+                current: current
+                    .iter()
+                    .filter_map(T::change)
+                    .chain(asset.as_deref().and_then(T::asset_change))
+                    .collect(),
+            },
             Outcome::Detached { cause, .. } => Event::Detached(*cause),
             Outcome::Diagnosed { diagnostics, .. } => Event::Diagnosed(diagnostics.clone()),
-            Outcome::Changed(_) | Outcome::AssetChanged { .. } => {
-                Event::Changed(self.change::<T>()?)
-            }
+            Outcome::Changed(change) => Event::Changed(T::change(change)?),
+            Outcome::AssetChanged { id, .. } => Event::Changed(T::asset_change(id)?),
         })
     }
 }
@@ -143,12 +142,14 @@ pub enum Event<T: Namespace> {
     Opened(T),
     /// The namespace didn't open.
     OpenFailed(Error),
-    /// A value or asset changed, by any writer.
+    /// A value or asset changed, by any writer, this app's own writes included.
     Changed(T::Change),
-    /// A write landed. Its changes arrive as `Changed`.
-    Written,
     /// A write was refused or may not have landed.
-    WriteFailed(Error),
+    WriteFailed {
+        error: Error,
+        /// What each key or asset the write touched holds now.
+        current: Vec<T::Change>,
+    },
     /// The handle stopped following its namespace, and keeps its values.
     Detached(Detach),
     /// The namespace has problems it didn't have before. Log them.
@@ -174,11 +175,7 @@ impl std::fmt::Display for Detach {
     }
 }
 
-/// The ticket type for writes.
-#[derive(Debug)]
-pub enum Write {}
-
-/// The id of an open or a write, as its outcome carries it.
+/// The id of an open, as its outcome carries it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TicketId(u64);
 
@@ -188,7 +185,7 @@ impl From<TicketId> for u64 {
     }
 }
 
-/// Identifies an open or a write until its outcome arrives.
+/// Identifies an open until its outcome arrives.
 pub struct Ticket<T> {
     id: TicketId,
     of: PhantomData<fn() -> T>,
@@ -244,19 +241,6 @@ impl<T: FromSettings> Ticket<T> {
                 ticket, settings, ..
             } if *ticket == self.id => Some(Ok(T::from_settings(settings.clone()))),
             Outcome::OpenFailed { ticket, error, .. } if *ticket == self.id => {
-                Some(Err(error.clone()))
-            }
-            _ => None,
-        }
-    }
-}
-
-impl Ticket<Write> {
-    /// The write's result, if `outcome` is for this write.
-    pub fn written(&self, outcome: &Outcome) -> Option<Result<(), Error>> {
-        match outcome {
-            Outcome::Written { ticket, .. } if *ticket == self.id => Some(Ok(())),
-            Outcome::WriteFailed { ticket, error, .. } if *ticket == self.id => {
                 Some(Err(error.clone()))
             }
             _ => None,
@@ -324,11 +308,10 @@ enum Pending {
     /// A fresh snapshot for an open namespace, after a restart or a bad signal.
     Resubscribe { namespace: String },
     /// A write.
-    Apply { ticket: TicketId, namespace: String },
+    Apply(Writing),
     /// An asset write. Holds the file open until the daemon replies.
     WriteAsset {
-        ticket: TicketId,
-        namespace: String,
+        write: Writing,
         _file: Option<Served>,
     },
 }
@@ -336,7 +319,37 @@ enum Pending {
 impl Pending {
     /// Whether this is a write.
     fn writes(&self) -> bool {
-        matches!(self, Pending::Apply { .. } | Pending::WriteAsset { .. })
+        matches!(self, Pending::Apply(_) | Pending::WriteAsset { .. })
+    }
+}
+
+/// A write on its way, with what its failure reports.
+struct Writing {
+    namespace: String,
+    /// The keys it sets or clears.
+    keys: Vec<String>,
+    /// The asset it writes or removes.
+    asset: Option<String>,
+}
+
+impl Writing {
+    /// A write of `edits` to `namespace`.
+    fn edits(namespace: &str, edits: &[Edit]) -> Writing {
+        let keys: BTreeSet<&str> = edits.iter().map(Edit::key).collect();
+        Writing {
+            namespace: namespace.to_string(),
+            keys: keys.into_iter().map(str::to_string).collect(),
+            asset: None,
+        }
+    }
+
+    /// A write of `namespace`'s asset `id`.
+    fn asset(namespace: &str, id: &str) -> Writing {
+        Writing {
+            namespace: namespace.to_string(),
+            keys: Vec::new(),
+            asset: Some(id.to_string()),
+        }
     }
 }
 
@@ -454,14 +467,9 @@ impl Source {
                     && inner.roots.serving.is_none()
                     && shared(&open.namespace) =>
             {
+                let why = inner.unserved(&e);
                 match inner.schema(&open.namespace) {
-                    Ok(schema) => {
-                        let settings = self.attach(inner, Space::defaults(schema));
-                        // Another version holds it, so the defaults must not be written over it.
-                        let space = inner.spaces.get_mut(&open.namespace).expect(OPEN);
-                        space.other = e.other_version();
-                        Ok(settings)
-                    }
+                    Ok(schema) => Ok(self.attach(inner, Space::defaults(schema, why, e))),
                     Err(_) => Err(e),
                 }
             }
@@ -517,18 +525,6 @@ impl Source {
     fn live(&self, inner: &Inner, namespace: &str) -> Option<Settings> {
         let key = inner.spaces.get(namespace)?.key.upgrade()?;
         Some(Settings::new(self.clone(), key))
-    }
-
-    /// Whether `bus` is carried and its daemon running.
-    pub fn daemon(&self, bus: Bus) -> Presence {
-        let inner = self.lock();
-        if !inner.reach.contains(&bus) {
-            Presence::NoBus
-        } else if inner.owners.get(&bus).is_some_and(Option::is_some) {
-            Presence::Running
-        } else {
-            Presence::NoDaemon
-        }
     }
 
     /// Take the outcomes since the last call.
@@ -587,17 +583,15 @@ impl Source {
                 inner.take_early(&namespace);
             }
             // The daemon sent `AssetChanged` before this reply.
-            Pending::WriteAsset {
-                ticket, namespace, ..
-            } => inner.written(ticket, namespace, result.map(|_| ())),
-            Pending::Apply { ticket, namespace } => {
+            Pending::WriteAsset { write, .. } => inner.written(write, result.map(|_| ())),
+            Pending::Apply(write) => {
                 let state = match result.and_then(wire::applied) {
                     Ok(state) => state,
-                    Err(e) => return inner.written(ticket, namespace, Err(e)),
+                    Err(e) => return inner.written(write, Err(e)),
                 };
                 // Newer than held only if a `Changed` was missed.
-                inner.take(bus, &namespace, state);
-                inner.written(ticket, namespace, Ok(()));
+                inner.take(bus, &write.namespace, state);
+                inner.written(write, Ok(()));
             }
         }
     }
@@ -820,14 +814,34 @@ impl Inner {
         }
     }
 
-    fn written(&mut self, ticket: TicketId, namespace: String, result: Result<(), Error>) {
-        self.outcomes.push(match result {
-            Ok(()) => Outcome::Written { ticket, namespace },
-            Err(error) => Outcome::WriteFailed {
-                ticket,
-                namespace,
-                error,
-            },
+    /// Give `write`'s result. A failure carries what its keys hold now.
+    fn written(&mut self, write: Writing, result: Result<(), Error>) {
+        let Writing {
+            namespace,
+            keys,
+            asset,
+        } = write;
+        let Err(error) = result else {
+            return;
+        };
+        let current = match self.spaces.get(&namespace) {
+            Some(space) => keys
+                .into_iter()
+                .filter(|key| space.schema.key(key).is_some())
+                .map(|key| Change {
+                    namespace: namespace.clone(),
+                    value: space.resolved.get(&key).cloned(),
+                    revision: space.revision(),
+                    key,
+                })
+                .collect(),
+            None => Vec::new(),
+        };
+        self.outcomes.push(Outcome::WriteFailed {
+            namespace,
+            error,
+            current,
+            asset,
         });
     }
 
@@ -849,20 +863,13 @@ impl Inner {
         self.outbox.push((bus, call));
     }
 
-    /// Send write `ticket` to `namespace` as `call` on `bus`, or fail it if the bus isn't reached.
-    fn send_write(
-        &mut self,
-        bus: Bus,
-        ticket: TicketId,
-        namespace: &str,
-        call: Call,
-        pending: Pending,
-    ) {
+    /// Send a write as `call` on `bus`, or fail it if the bus isn't reached.
+    fn send_write(&mut self, bus: Bus, call: Call, pending: Pending) {
         if self.reach.contains(&bus) {
-            self.send(bus, call, pending);
-        } else {
-            let namespace = namespace.to_string();
-            self.written(ticket, namespace, Err(Kind::Unreachable(bus).into()));
+            return self.send(bus, call, pending);
+        }
+        if let Pending::Apply(write) | Pending::WriteAsset { write, .. } = pending {
+            self.written(write, Err(Kind::Unreachable(bus).into()));
         }
     }
 
@@ -942,12 +949,24 @@ impl Inner {
             .is_some_and(|owner| owner.as_deref() == Some(sender))
     }
 
+    /// Why the daemon couldn't serve a namespace, from the error its open got.
+    fn unserved(&self, e: &Error) -> Unserved {
+        match e.kind() {
+            ErrorKind::VersionConflict => Unserved::Version {
+                served: e.other_version(),
+            },
+            ErrorKind::Unreachable(bus) if self.reach.contains(&bus) => Unserved::NoDaemon,
+            ErrorKind::Unreachable(_) => Unserved::NoBus,
+            _ => Unserved::NotServed,
+        }
+    }
+
     /// Ask for a fresh snapshot of `namespace`, if it is open through the daemon.
     fn resubscribe(&mut self, namespace: &str) {
         let Some(bus) = self
             .spaces
             .get(namespace)
-            .and_then(Space::waits_on)
+            .and_then(Space::following)
             .filter(|bus| self.reach.contains(bus))
         else {
             return;
@@ -975,7 +994,7 @@ impl Inner {
         self.resubscribe_all(bus);
     }
 
-    /// Resubscribe every namespace that follows or waits for `bus`'s daemon.
+    /// Resubscribe every namespace that follows `bus`'s daemon.
     fn resubscribe_all(&mut self, bus: Bus) {
         let remote: Vec<String> = self
             .spaces
@@ -1017,7 +1036,7 @@ impl Inner {
         if self
             .spaces
             .get(namespace)
-            .and_then(Space::waits_on)
+            .and_then(Space::following)
             .is_none()
         {
             return;
@@ -1030,16 +1049,6 @@ impl Inner {
         let space = self.spaces.get_mut(namespace).expect("checked above");
         let (other, snap) = match snap {
             Ok(read) => read,
-            // The defaults stay, and only a refusal is worth a diagnostic.
-            Err(e) if space.on_defaults() => {
-                // Another version holds it, so the defaults must not be written over it.
-                space.other = e.other_version();
-                if !e.unavailable() && space.other.is_none() {
-                    let message = format!("could not subscribe, so the defaults stay: {e}");
-                    space.resolved.diagnostics.push(Diagnostic::error(message));
-                }
-                return self.diagnose(namespace);
-            }
             // Another version took over, so keep the values and stop following.
             Err(e) if e.kind() == ErrorKind::VersionConflict => {
                 return self.detach(namespace, Detach::Moved);
@@ -1051,7 +1060,6 @@ impl Inner {
                 return self.diagnose(namespace);
             }
         };
-        space.follow();
         space.other = other;
         space.subscribe(Some(snap.subscription));
         let (state, assets) = (snap.state, snap.assets);
@@ -1184,46 +1192,41 @@ impl Settings {
         space.route(edits)
     }
 
-    /// Write `edits`. Validated now, answered by [`Event::Written`] or [`Event::WriteFailed`].
-    pub fn write(&self, edits: &[Edit]) -> Result<Ticket<Write>, Error> {
+    /// Write `edits` as one batch. The result arrives as [`Event::Changed`] or [`Event::WriteFailed`].
+    pub fn write(&self, edits: &[Edit]) {
         let mut guard = self.source().lock();
         let inner = &mut *guard;
         let namespace = self.namespace();
-        let route = self.plan(inner, edits)?;
-        let ticket = inner.ticket();
-        match route {
-            None => {
+        let write = Writing::edits(namespace, edits);
+        match self.plan(inner, edits) {
+            Ok(None) => {
                 let space = inner.spaces.get_mut(namespace).expect(OPEN);
                 let result = space.apply(edits);
                 let result = result.map(|changes| inner.report(namespace, changes, Vec::new()));
-                inner.written(ticket, namespace.to_string(), result);
+                inner.written(write, result);
             }
-            Some(bus) => {
+            Ok(Some(bus)) => {
                 let app = inner.app_for(namespace);
                 let call = Call::apply(inner.id(), &app, namespace, edits);
-                let pending = Pending::Apply {
-                    ticket,
-                    namespace: namespace.to_string(),
-                };
-                inner.send_write(bus, ticket, namespace, call, pending);
+                inner.send_write(bus, call, Pending::Apply(write));
             }
+            Err(e) => inner.written(write, Err(e)),
         }
-        Ok(Ticket::new(ticket))
     }
 
     /// Write `bytes` as the user's copy of asset `id`.
-    pub fn write_asset(&self, id: &str, bytes: &[u8]) -> Result<Ticket<Write>, Error> {
-        self.put_asset(id, Some(Content::Bytes(bytes)))
+    pub fn write_asset(&self, id: &str, bytes: &[u8]) {
+        self.put_asset(id, Some(Content::Bytes(bytes)));
     }
 
     /// Copy the regular file `file` as the user's copy of asset `id`.
-    pub fn write_asset_from(&self, id: &str, file: OwnedFd) -> Result<Ticket<Write>, Error> {
-        self.put_asset(id, Some(Content::File(file)))
+    pub fn write_asset_from(&self, id: &str, file: OwnedFd) {
+        self.put_asset(id, Some(Content::File(file)));
     }
 
-    /// Remove the user's copy of asset `id`.
-    pub fn clear_asset(&self, id: &str) -> Result<Ticket<Write>, Error> {
-        self.put_asset(id, None)
+    /// Remove the user's copy of asset `id`, so a lower layer applies.
+    pub fn remove_asset(&self, id: &str) {
+        self.put_asset(id, None);
     }
 
     /// Check that asset `id` may be written, as the asset writes would.
@@ -1245,31 +1248,30 @@ impl Settings {
             let why = format!("`{namespace}` is privileged, so its assets are installed files");
             return Err(Kind::Access(why).into());
         }
-        Ok(())
+        space.served()
     }
 
-    /// Write or clear asset `id`.
-    fn put_asset(&self, id: &str, content: Option<Content<'_>>) -> Result<Ticket<Write>, Error> {
+    /// Write or remove asset `id`.
+    fn put_asset(&self, id: &str, content: Option<Content<'_>>) {
         let mut guard = self.source().lock();
         let inner = &mut *guard;
-        self.asset_allowed(inner, id)?;
         let namespace = self.namespace();
+        let write = Writing::asset(namespace, id);
+        if let Err(e) = self.asset_allowed(inner, id) {
+            return inner.written(write, Err(e));
+        }
         let bus = inner.spaces.get(namespace).expect(OPEN).bus();
-        let ticket = inner.ticket();
         if let Some(bus) = bus {
             // The daemon takes a file, so put bytes in one first.
-            let file = content
-                .map(Content::into_served)
-                .transpose()
-                .map_err(|e| Error::io("<asset>", e))?;
-            let app = inner.app_for(namespace);
-            let call = Call::write_asset(inner.id(), &app, namespace, id, file.as_ref());
-            let pending = Pending::WriteAsset {
-                ticket,
-                namespace: namespace.to_string(),
-                _file: file,
-            };
-            inner.send_write(bus, ticket, namespace, call, pending);
+            match content.map(Content::into_served).transpose() {
+                Ok(file) => {
+                    let app = inner.app_for(namespace);
+                    let call = Call::write_asset(inner.id(), &app, namespace, id, file.as_ref());
+                    let pending = Pending::WriteAsset { write, _file: file };
+                    inner.send_write(bus, call, pending);
+                }
+                Err(e) => inner.written(write, Err(Error::io("<asset>", e))),
+            }
         } else {
             let space = inner.spaces.get_mut(namespace).expect(OPEN);
             let result = content
@@ -1279,9 +1281,8 @@ impl Settings {
                 .and_then(|bytes| space.put_asset(id, bytes.as_deref()));
             let moved = space.moved_assets();
             inner.report(namespace, Vec::new(), moved);
-            inner.written(ticket, namespace.to_string(), result);
+            inner.written(write, result);
         }
-        Ok(Ticket::new(ticket))
     }
 }
 

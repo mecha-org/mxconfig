@@ -17,9 +17,6 @@ const KEYWORDS: &[&str] = &[
     "unsafe", "unsized", "use", "virtual", "where", "while", "yield",
 ];
 
-/// The return type of a write.
-const TICKET: &str = "Result<mxconfig::Ticket<mxconfig::Write>, mxconfig::Error>";
-
 /// Emit a typed Rust client for `schema`.
 pub fn rust(schema: &Schema) -> Result<String, String> {
     let ns = schema.namespace();
@@ -187,13 +184,13 @@ fn accessors(key: &KeySchema, scope: &mut Scope) -> Result<String, String> {
     let clear = scope.claim(format!("clear_{base}"), &owner)?;
     Ok(getter
         + &format!(
-            r"    pub fn {set}(&self, value: {param}) -> {TICKET} {{
-        self.settings.write(&[mxconfig::Edit::set({lit}, {write})])
+            r"    pub fn {set}(&self, value: {param}) {{
+        self.settings.write(&[mxconfig::Edit::set({lit}, {write})]);
     }}
 
     /// Unset it, so a lower layer or the default applies.
-    pub fn {clear}(&self) -> {TICKET} {{
-        self.settings.write(&[mxconfig::Edit::remove({lit})])
+    pub fn {clear}(&self) {{
+        self.settings.write(&[mxconfig::Edit::clear({lit})]);
     }}
 
 "
@@ -217,20 +214,20 @@ fn asset_accessors(asset: &AssetSchema, scope: &mut Scope) -> Result<String, Str
     if !asset.managed {
         let set = scope.claim(format!("set_asset_{base}"), &owner)?;
         let from = scope.claim(format!("set_asset_{base}_from"), &owner)?;
-        let clear = scope.claim(format!("clear_asset_{base}"), &owner)?;
+        let remove = scope.claim(format!("remove_asset_{base}"), &owner)?;
         out += &format!(
-            r"    pub fn {set}(&self, bytes: &[u8]) -> {TICKET} {{
-        self.settings.write_asset({lit}, bytes)
+            r"    pub fn {set}(&self, bytes: &[u8]) {{
+        self.settings.write_asset({lit}, bytes);
     }}
 
     /// Copy a regular file as the user's copy.
-    pub fn {from}(&self, file: std::os::fd::OwnedFd) -> {TICKET} {{
-        self.settings.write_asset_from({lit}, file)
+    pub fn {from}(&self, file: std::os::fd::OwnedFd) {{
+        self.settings.write_asset_from({lit}, file);
     }}
 
     /// Remove the user's copy, so a lower layer applies again.
-    pub fn {clear}(&self) -> {TICKET} {{
-        self.settings.clear_asset({lit})
+    pub fn {remove}(&self) {{
+        self.settings.remove_asset({lit});
     }}
 
 "

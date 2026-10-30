@@ -10,7 +10,7 @@ use crate::settings::Edit;
 use crate::transport::{Bus, Kept, Served};
 use mxconfig_schema::value::{self, Value};
 
-use protocol::{APPLY, ASSET_CHANGED, BUS_NAME, CHANGED, CLEAR_ASSET, DBUS, DBUS_PATH};
+use protocol::{APPLY, ASSET_CHANGED, BUS_NAME, CHANGED, DBUS, DBUS_PATH, REMOVE_ASSET};
 use protocol::{ENTRY_SIGNATURE, GET_NAME_OWNER, INTERFACE, NAME_OWNER_CHANGED, OBJECT_PATH};
 use protocol::{SUBSCRIBE, WRITE_ASSET};
 
@@ -160,7 +160,7 @@ impl Call {
                 let args = vec![Arg::Fd(file.shared()), namespace, asset, app];
                 Call::daemon(id, WRITE_ASSET, args)
             }
-            None => Call::daemon(id, CLEAR_ASSET, vec![namespace, asset, app]),
+            None => Call::daemon(id, REMOVE_ASSET, vec![namespace, asset, app]),
         }
     }
 }

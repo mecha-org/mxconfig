@@ -15,11 +15,13 @@ class _Source implements Driven {
 
   final source.MxSource rust;
 
-  /// Opens and writes waiting on their outcome, by ticket.
-  final _pending = <int, Completer<Object?>>{};
+  /// Opens waiting on their outcome, by ticket.
+  final _pending = <int, Completer<Settings>>{};
   final _events = StreamController<_Event>.broadcast(sync: true);
   final _detached =
       StreamController<(String, DetachCause)>.broadcast(sync: true);
+  final _failed =
+      StreamController<(String, WriteFailure)>.broadcast(sync: true);
   final _watching = <String, StreamSubscription<FileSystemEvent>>{};
 
   /// The directories the source last asked to watch.
@@ -31,13 +33,9 @@ class _Source implements Driven {
   @override
   late final transport = rust.transport();
 
-  Future<Settings> open(BigInt ticket) async => await _wait(ticket) as Settings;
-
-  Future<void> write(BigInt ticket) => _wait(ticket);
-
-  /// Wait for the outcome of [ticket].
-  Future<Object?> _wait(BigInt ticket) {
-    final done = _pending[ticket.toInt()] = Completer<Object?>();
+  /// Wait for the open of [ticket].
+  Future<Settings> open(BigInt ticket) {
+    final done = _pending[ticket.toInt()] = Completer<Settings>();
     drain();
     return done.future;
   }
@@ -49,18 +47,17 @@ class _Source implements Driven {
       final (ticket, namespace) = (outcome.ticket.toInt(), outcome.namespace);
       final error = outcome.error;
       switch (outcome.kind) {
-        case source.MxOutcomeKind.opened || source.MxOutcomeKind.written
-            when error != null:
-          if (outcome.kind == source.MxOutcomeKind.opened) {
-            _log('error: cannot open `$namespace`: ${error.message}');
-          }
+        case source.MxOutcomeKind.opened when error != null:
+          _log('error: cannot open `$namespace`: ${error.message}');
           _pending.remove(ticket)?.completeError(error);
         case source.MxOutcomeKind.opened:
           _pending
               .remove(ticket)
               ?.complete(Settings._(outcome.settings!, this));
-        case source.MxOutcomeKind.written:
-          _pending.remove(ticket)?.complete();
+        case source.MxOutcomeKind.writeFailed:
+          final failure =
+              WriteFailure._(error!, outcome.current, outcome.asset);
+          _failed.add((namespace, failure));
         case source.MxOutcomeKind.changed:
           _events
               .add((namespace: namespace, change: outcome.change, asset: null));

@@ -12,7 +12,7 @@ use std::time::Duration;
 use futures_util::{Stream, StreamExt};
 use mxconfig::host::Roots;
 pub use mxconfig::host::protocol::{BUS_NAME, INTERFACE, OBJECT_PATH};
-use mxconfig::{Error, FromSettings, Outcome, Settings, Source, Table, Ticket, Write};
+use mxconfig::{Error, FromSettings, Outcome, Settings, Source, Table, Ticket};
 use mxconfig_daemon::Service;
 use zbus::zvariant::{OwnedValue, Value as ZValue};
 
@@ -393,9 +393,9 @@ pub async fn write_asset(
     within(proxy.call("WriteAsset", &(fd, namespace, id, TOOL))).await
 }
 
-/// `ClearAsset` for asset `id`, as [`TOOL`].
-pub async fn clear_asset(proxy: &zbus::Proxy<'_>, namespace: &str, id: &str) -> zbus::Result<()> {
-    within(proxy.call("ClearAsset", &(namespace, id, TOOL))).await
+/// `RemoveAsset` for asset `id`, as [`TOOL`].
+pub async fn remove_asset(proxy: &zbus::Proxy<'_>, namespace: &str, id: &str) -> zbus::Result<()> {
+    within(proxy.call("RemoveAsset", &(namespace, id, TOOL))).await
 }
 
 /// The D-Bus error name of a failed call.
@@ -456,15 +456,19 @@ pub fn opened<T: FromSettings>(source: &Source, ticket: Ticket<T>) -> Result<T, 
 /// Open `namespace` through the daemon on `link`.
 pub async fn open(source: &Source, link: &mut ZbusLink, namespace: &str) -> Settings {
     let settings = try_open(source, link, namespace).await.unwrap();
-    assert!(settings.from_daemon());
+    let state = settings.state();
+    assert!(!matches!(state, mxconfig::State::Defaults(_)), "{state}");
     settings
 }
 
-/// The result of write `ticket`, from the outcomes so far.
-pub fn written(source: &Source, ticket: Ticket<Write>) -> Result<(), Error> {
-    let outcomes = source.outcomes();
-    let found = outcomes.iter().find_map(|o| ticket.written(o));
-    found.expect("written")
+/// The result of the writes settled so far: the first failure, if any.
+pub fn written(source: &Source) -> Result<(), Error> {
+    for outcome in source.outcomes() {
+        if let Outcome::WriteFailed { error, .. } = outcome {
+            return Err(error);
+        }
+    }
+    Ok(())
 }
 
 /// Run `link` until an outcome matches `wanted`.

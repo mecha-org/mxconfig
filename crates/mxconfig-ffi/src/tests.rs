@@ -2,7 +2,7 @@
 
 use crate::api::source::{MxArg, MxArgKind, MxOutcome, MxOutcomeKind};
 use crate::api::source::{MxSource, MxTransport};
-use crate::api::{Change, MxSettings, MxconfigException};
+use crate::api::{Change, MxSettings, MxStateKind, MxconfigException};
 use tempfile::TempDir;
 
 const SCHEMA: &str = r##"
@@ -68,7 +68,7 @@ fn reads_defaults_and_writes_typed_values() {
 
     assert_eq!(settings.namespace(), "org.mechanix.demo");
     assert_eq!(settings.revision(), 0);
-    assert!(!settings.from_daemon());
+    assert!(matches!(settings.state().kind, MxStateKind::Live));
 
     assert_eq!(
         settings.get_string("colors.accent".into()),
@@ -84,10 +84,8 @@ fn reads_defaults_and_writes_typed_values() {
     );
 
     // A local write finishes immediately.
-    let changes = landed(
-        &source,
-        settings.set_string("colors.accent".into(), "#ff0000".into()),
-    );
+    settings.set_string("colors.accent".into(), "#ff0000".into());
+    let changes = landed(&source);
     assert_eq!(changes.len(), 1);
     assert_eq!(changes[0].key, "colors.accent");
     assert_eq!(changes[0].value, Some("\"#ff0000\"".to_string()));
@@ -96,9 +94,10 @@ fn reads_defaults_and_writes_typed_values() {
         Some("#ff0000".to_string())
     );
 
-    landed(&source, settings.set_int("colors.corner_radius".into(), 20));
-    landed(&source, settings.set_double("colors.scale".into(), 1.5));
-    landed(&source, settings.set_bool("verbose".into(), true));
+    settings.set_int("colors.corner_radius".into(), 20);
+    settings.set_double("colors.scale".into(), 1.5);
+    settings.set_bool("verbose".into(), true);
+    landed(&source);
     assert_eq!(settings.get_int("colors.corner_radius".into()), Some(20));
     assert_eq!(settings.get_double("colors.scale".into()), Some(1.5));
     assert_eq!(settings.get_bool("verbose".into()), Some(true));
@@ -107,16 +106,22 @@ fn reads_defaults_and_writes_typed_values() {
     assert!(settings.get_toml("colors.mode".into()).is_some());
 }
 
-/// The changes a local write made.
-fn landed(source: &MxSource, ticket: Result<u64, MxconfigException>) -> Vec<Change> {
-    let ticket = ticket.unwrap();
+/// The changes the local writes since the last drain made. None may fail.
+fn landed(source: &MxSource) -> Vec<Change> {
     let outcomes = source.outcomes();
-    let written = outcomes
-        .iter()
-        .find(|o| matches!(o.kind, MxOutcomeKind::Written) && o.ticket == ticket);
-    let error = &written.expect("a local write lands at once").error;
-    assert!(error.is_none(), "{error:?}");
+    let failed = |o: &MxOutcome| matches!(o.kind, MxOutcomeKind::WriteFailed);
+    assert!(!outcomes.iter().any(failed), "{outcomes:?}");
     changed(outcomes)
+}
+
+/// The error the last write was refused with, which arrives as an outcome.
+fn refused(source: &MxSource) -> MxconfigException {
+    let outcomes = source.outcomes();
+    let failed = outcomes
+        .into_iter()
+        .find(|o| matches!(o.kind, MxOutcomeKind::WriteFailed));
+    let failed = failed.expect("a refusal is an outcome");
+    failed.error.expect("it carries its error")
 }
 
 /// The value changes in `outcomes`.
@@ -129,20 +134,19 @@ fn refuses_bad_values_and_reports_changes_on_removal() {
     let dir = TempDir::new().unwrap();
     let (source, settings) = open(&dir, SCHEMA);
 
-    assert!(settings.set_int("colors.corner_radius".into(), 99).is_err());
-    assert!(settings.set_int("colors.accent".into(), 5).is_err());
-    assert!(settings.set_bool("nope.nope".into(), true).is_err());
-    assert!(
-        settings
-            .set_string("colors.mode".into(), "sepia".into())
-            .is_err()
-    );
+    settings.set_int("colors.corner_radius".into(), 99);
+    refused(&source);
+    settings.set_int("colors.accent".into(), 5);
+    refused(&source);
+    settings.set_bool("nope.nope".into(), true);
+    refused(&source);
+    settings.set_string("colors.mode".into(), "sepia".into());
+    refused(&source);
 
-    landed(
-        &source,
-        settings.set_string("colors.accent".into(), "#ff0000".into()),
-    );
-    let removed = landed(&source, settings.remove("colors.accent".into()));
+    settings.set_string("colors.accent".into(), "#ff0000".into());
+    landed(&source);
+    settings.clear("colors.accent".into());
+    let removed = landed(&source);
     assert_eq!(removed.len(), 1);
     assert_eq!(removed[0].value, Some("\"#7aa2f7\"".to_string()));
     assert_eq!(
@@ -326,7 +330,7 @@ fn a_kept_subscription_is_released_with_its_handle() {
     let dir = TempDir::new().unwrap();
     let (source, opened) = served(&dir, subscribed(SCHEMA, &[], &[]));
     let settings = opened.settings.expect("opened");
-    assert!(settings.from_daemon());
+    assert!(matches!(settings.state().kind, MxStateKind::Live));
     assert_eq!(
         source.transport().take_released("session".into()).unwrap(),
         Vec::<u64>::new()
@@ -471,23 +475,24 @@ fn describe_marks_managed_keys() {
 fn every_setter_fails_for_a_managed_key() {
     let dir = TempDir::new().unwrap();
     let (source, settings) = open(&dir, MANAGED);
-    let refusals = [
-        settings.set_int("brightness".into(), 1),
-        settings.set_toml("brightness".into(), "1".into()),
-        settings.remove("brightness".into()),
-        settings.set_string("lock".into(), "on".into()),
-        settings.remove("lock".into()),
-    ];
-    for refused in refusals {
-        let e = refused.expect_err("a managed key is never written");
+    settings.set_int("brightness".into(), 1);
+    settings.set_toml("brightness".into(), "1".into()).unwrap();
+    settings.clear("brightness".into());
+    settings.set_string("lock".into(), "on".into());
+    settings.clear("lock".into());
+    let outcomes = source.outcomes();
+    assert_eq!(outcomes.len(), 5, "{outcomes:?}");
+    for outcome in &outcomes {
+        assert!(matches!(outcome.kind, MxOutcomeKind::WriteFailed));
+        let e = outcome.error.as_ref().expect("refused");
         assert!(e.message.contains("managed"), "{}", e.message);
     }
-    assert!(source.outcomes().is_empty());
     assert!(!dir.path().join("org.mechanix.demo/config.toml").exists());
     assert_eq!(settings.get_int("brightness".into()), Some(50));
 
     // An unmanaged key beside it writes as usual.
-    landed(&source, settings.set_int("volume".into(), 10));
+    settings.set_int("volume".into(), 10);
+    landed(&source);
     assert_eq!(settings.get_int("volume".into()), Some(10));
 }
 
@@ -498,20 +503,17 @@ fn every_asset_writer_fails_for_a_managed_asset() {
     let file = dir.path().join("outside.yaml");
     std::fs::write(&file, "rows: []\n").unwrap();
 
-    assert!(settings.set_asset("layout".into(), b"x".to_vec()).is_err());
+    settings.set_asset("layout".into(), b"x".to_vec());
+    refused(&source);
     let path = file.display().to_string();
-    assert!(settings.set_asset_file("layout".into(), path).is_err());
-    assert!(settings.remove_asset("layout".into()).is_err());
-    assert!(source.outcomes().is_empty());
+    settings.set_asset_file("layout".into(), path).unwrap();
+    refused(&source);
+    settings.remove_asset("layout".into());
+    refused(&source);
     assert!(!dir.path().join("org.mechanix.demo/layout.yaml").exists());
 
-    let ticket = settings
-        .set_asset("theme".into(), b"body {}".to_vec())
-        .unwrap();
-    let outcomes = source.outcomes();
-    let written = outcomes.iter().find(|o| o.ticket == ticket);
-    let error = &written.expect("written").error;
-    assert!(error.is_none(), "{error:?}");
+    settings.set_asset("theme".into(), b"body {}".to_vec());
+    landed(&source);
     assert_eq!(
         settings.asset("theme".into()).as_deref(),
         Some(&b"body {}"[..])

@@ -68,19 +68,17 @@ void main() {
       await dir.delete(recursive: true);
     });
 
-    test('a running daemon is seen before anything opens', () async {
-      expect(await Settings.daemon(), DaemonPresence.running);
-    });
-
     test(
         'a handle opened through the daemon reads, writes and hears other writers',
         () async {
       final settings = await open('demo');
-      expect(settings.fromDaemon, isTrue);
+      expect(settings.state, isA<LiveState>());
       expect(settings.getString('accent'), '#7aa2f7');
 
-      // A write completes once the daemon has applied it.
-      await settings.setString('accent', '#abcdef');
+      // A write's change arrives once the daemon has applied it.
+      expect(
+          await landed(settings, () => settings.setString('accent', '#abcdef')),
+          isNull);
       expect(settings.getString('accent'), '#abcdef');
       expect(
           File('${dir.path}/user/mxconfig/org.mechanix.desktop.demo/conf.toml')
@@ -89,7 +87,7 @@ void main() {
 
       final other = await open('demo');
       final heard = settings.watch().firstWhere((c) => c.value == '"#010203"');
-      await other.setString('accent', '#010203');
+      other.setString('accent', '#010203');
       await heard.timeout(const Duration(seconds: 5));
       expect(settings.getString('accent'), '#010203');
     });
@@ -115,20 +113,23 @@ void main() {
       }
 
       // Writes from bytes and from a file both reach the daemon.
-      await settings.setAsset('wallpaper', utf8.encode('stars'));
+      await landed(
+          settings, () => settings.setAsset('wallpaper', utf8.encode('stars')));
       expect(utf8.decode(settings.asset('wallpaper')!), 'stars');
       final picked = File('${dir.path}/picked.txt')..writeAsStringSync('sand');
-      await settings.setAssetFromFile('wallpaper', picked.path);
+      await landed(
+          settings, () => settings.setAssetFromFile('wallpaper', picked.path));
       expect(utf8.decode(settings.asset('wallpaper')!), 'sand');
       expect(File('${home.path}/wallpaper.txt').readAsStringSync(), 'sand');
-      await settings.removeAsset('wallpaper');
+      await landed(settings, () => settings.removeAsset('wallpaper'));
       expect(settings.asset('wallpaper'), isNull);
     });
 
     test('a namespace the daemon does not serve opens on its defaults',
         () async {
       final settings = await open('nothing');
-      expect(settings.onDefaults, isTrue);
+      expect(settings.state,
+          isA<DefaultsState>().having((s) => s.why, 'why', Unserved.notServed));
       expect(settings.getString('accent'), '#7aa2f7');
     });
 
@@ -140,7 +141,7 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       await transport.close();
       final settings = await opening.timeout(const Duration(seconds: 5));
-      expect(settings.onDefaults, isTrue);
+      expect(settings.state, isA<DefaultsState>());
     });
   });
 }

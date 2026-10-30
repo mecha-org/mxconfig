@@ -41,7 +41,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 277734215;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -755140658;
 
 // Section: executor
 
@@ -149,6 +149,55 @@ fn wire__crate__api__MxSettings_authorize_impl(
         },
     )
 }
+fn wire__crate__api__MxSettings_clear_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "MxSettings_clear",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MxSettings>,
+            >>::sse_decode(&mut deserializer);
+            let api_key = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let mut api_that_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_that, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
+                    }
+                }
+                let api_that_guard = api_that_guard.unwrap();
+                let output_ok = Ok::<_, ()>({
+                    crate::api::MxSettings::clear(&*api_that_guard, api_key);
+                })?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
 fn wire__crate__api__MxSettings_describe_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -236,52 +285,6 @@ fn wire__crate__api__MxSettings_diagnostics_impl(
                 }
                 let api_that_guard = api_that_guard.unwrap();
                 let output_ok = Ok::<_, ()>(crate::api::MxSettings::diagnostics(&*api_that_guard))?;
-                std::result::Result::Ok(output_ok)
-            })())
-        },
-    )
-}
-fn wire__crate__api__MxSettings_from_daemon_impl(
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "MxSettings_from_daemon",
-            port: None,
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MxSettings>,
-            >>::sse_decode(&mut deserializer);
-            deserializer.end();
-            transform_result_sse::<_, ()>((move || {
-                let mut api_that_guard = None;
-                let decode_indices_ =
-                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                            &api_that, 0, false,
-                        ),
-                    ]);
-                for i in decode_indices_ {
-                    match i {
-                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
-                        _ => unreachable!(),
-                    }
-                }
-                let api_that_guard = api_that_guard.unwrap();
-                let output_ok = Ok::<_, ()>(crate::api::MxSettings::from_daemon(&*api_that_guard))?;
                 std::result::Result::Ok(output_ok)
             })())
         },
@@ -577,146 +580,6 @@ fn wire__crate__api__MxSettings_namespace_impl(
         },
     )
 }
-fn wire__crate__api__MxSettings_on_defaults_impl(
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "MxSettings_on_defaults",
-            port: None,
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MxSettings>,
-            >>::sse_decode(&mut deserializer);
-            deserializer.end();
-            transform_result_sse::<_, ()>((move || {
-                let mut api_that_guard = None;
-                let decode_indices_ =
-                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                            &api_that, 0, false,
-                        ),
-                    ]);
-                for i in decode_indices_ {
-                    match i {
-                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
-                        _ => unreachable!(),
-                    }
-                }
-                let api_that_guard = api_that_guard.unwrap();
-                let output_ok = Ok::<_, ()>(crate::api::MxSettings::on_defaults(&*api_that_guard))?;
-                std::result::Result::Ok(output_ok)
-            })())
-        },
-    )
-}
-fn wire__crate__api__MxSettings_other_version_impl(
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "MxSettings_other_version",
-            port: None,
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MxSettings>,
-            >>::sse_decode(&mut deserializer);
-            deserializer.end();
-            transform_result_sse::<_, ()>((move || {
-                let mut api_that_guard = None;
-                let decode_indices_ =
-                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                            &api_that, 0, false,
-                        ),
-                    ]);
-                for i in decode_indices_ {
-                    match i {
-                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
-                        _ => unreachable!(),
-                    }
-                }
-                let api_that_guard = api_that_guard.unwrap();
-                let output_ok =
-                    Ok::<_, ()>(crate::api::MxSettings::other_version(&*api_that_guard))?;
-                std::result::Result::Ok(output_ok)
-            })())
-        },
-    )
-}
-fn wire__crate__api__MxSettings_remove_impl(
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "MxSettings_remove",
-            port: None,
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MxSettings>,
-            >>::sse_decode(&mut deserializer);
-            let api_key = <String>::sse_decode(&mut deserializer);
-            deserializer.end();
-            transform_result_sse::<_, crate::api::MxconfigException>((move || {
-                let mut api_that_guard = None;
-                let decode_indices_ =
-                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                            &api_that, 0, false,
-                        ),
-                    ]);
-                for i in decode_indices_ {
-                    match i {
-                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
-                        _ => unreachable!(),
-                    }
-                }
-                let api_that_guard = api_that_guard.unwrap();
-                let output_ok = crate::api::MxSettings::remove(&*api_that_guard, api_key)?;
-                std::result::Result::Ok(output_ok)
-            })())
-        },
-    )
-}
 fn wire__crate__api__MxSettings_remove_asset_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -743,7 +606,7 @@ fn wire__crate__api__MxSettings_remove_asset_impl(
             >>::sse_decode(&mut deserializer);
             let api_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
-            transform_result_sse::<_, crate::api::MxconfigException>((move || {
+            transform_result_sse::<_, ()>((move || {
                 let mut api_that_guard = None;
                 let decode_indices_ =
                     flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
@@ -758,7 +621,9 @@ fn wire__crate__api__MxSettings_remove_asset_impl(
                     }
                 }
                 let api_that_guard = api_that_guard.unwrap();
-                let output_ok = crate::api::MxSettings::remove_asset(&*api_that_guard, api_id)?;
+                let output_ok = Ok::<_, ()>({
+                    crate::api::MxSettings::remove_asset(&*api_that_guard, api_id);
+                })?;
                 std::result::Result::Ok(output_ok)
             })())
         },
@@ -837,7 +702,7 @@ fn wire__crate__api__MxSettings_set_asset_impl(
             let api_id = <String>::sse_decode(&mut deserializer);
             let api_bytes = <Vec<u8>>::sse_decode(&mut deserializer);
             deserializer.end();
-            transform_result_sse::<_, crate::api::MxconfigException>((move || {
+            transform_result_sse::<_, ()>((move || {
                 let mut api_that_guard = None;
                 let decode_indices_ =
                     flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
@@ -852,8 +717,9 @@ fn wire__crate__api__MxSettings_set_asset_impl(
                     }
                 }
                 let api_that_guard = api_that_guard.unwrap();
-                let output_ok =
-                    crate::api::MxSettings::set_asset(&*api_that_guard, api_id, api_bytes)?;
+                let output_ok = Ok::<_, ()>({
+                    crate::api::MxSettings::set_asset(&*api_that_guard, api_id, api_bytes);
+                })?;
                 std::result::Result::Ok(output_ok)
             })())
         },
@@ -935,7 +801,7 @@ fn wire__crate__api__MxSettings_set_bool_impl(
             let api_key = <String>::sse_decode(&mut deserializer);
             let api_value = <bool>::sse_decode(&mut deserializer);
             deserializer.end();
-            transform_result_sse::<_, crate::api::MxconfigException>((move || {
+            transform_result_sse::<_, ()>((move || {
                 let mut api_that_guard = None;
                 let decode_indices_ =
                     flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
@@ -950,8 +816,9 @@ fn wire__crate__api__MxSettings_set_bool_impl(
                     }
                 }
                 let api_that_guard = api_that_guard.unwrap();
-                let output_ok =
-                    crate::api::MxSettings::set_bool(&*api_that_guard, api_key, api_value)?;
+                let output_ok = Ok::<_, ()>({
+                    crate::api::MxSettings::set_bool(&*api_that_guard, api_key, api_value);
+                })?;
                 std::result::Result::Ok(output_ok)
             })())
         },
@@ -984,7 +851,7 @@ fn wire__crate__api__MxSettings_set_double_impl(
             let api_key = <String>::sse_decode(&mut deserializer);
             let api_value = <f64>::sse_decode(&mut deserializer);
             deserializer.end();
-            transform_result_sse::<_, crate::api::MxconfigException>((move || {
+            transform_result_sse::<_, ()>((move || {
                 let mut api_that_guard = None;
                 let decode_indices_ =
                     flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
@@ -999,8 +866,9 @@ fn wire__crate__api__MxSettings_set_double_impl(
                     }
                 }
                 let api_that_guard = api_that_guard.unwrap();
-                let output_ok =
-                    crate::api::MxSettings::set_double(&*api_that_guard, api_key, api_value)?;
+                let output_ok = Ok::<_, ()>({
+                    crate::api::MxSettings::set_double(&*api_that_guard, api_key, api_value);
+                })?;
                 std::result::Result::Ok(output_ok)
             })())
         },
@@ -1033,7 +901,7 @@ fn wire__crate__api__MxSettings_set_int_impl(
             let api_key = <String>::sse_decode(&mut deserializer);
             let api_value = <i64>::sse_decode(&mut deserializer);
             deserializer.end();
-            transform_result_sse::<_, crate::api::MxconfigException>((move || {
+            transform_result_sse::<_, ()>((move || {
                 let mut api_that_guard = None;
                 let decode_indices_ =
                     flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
@@ -1048,8 +916,9 @@ fn wire__crate__api__MxSettings_set_int_impl(
                     }
                 }
                 let api_that_guard = api_that_guard.unwrap();
-                let output_ok =
-                    crate::api::MxSettings::set_int(&*api_that_guard, api_key, api_value)?;
+                let output_ok = Ok::<_, ()>({
+                    crate::api::MxSettings::set_int(&*api_that_guard, api_key, api_value);
+                })?;
                 std::result::Result::Ok(output_ok)
             })())
         },
@@ -1082,7 +951,7 @@ fn wire__crate__api__MxSettings_set_string_impl(
             let api_key = <String>::sse_decode(&mut deserializer);
             let api_value = <String>::sse_decode(&mut deserializer);
             deserializer.end();
-            transform_result_sse::<_, crate::api::MxconfigException>((move || {
+            transform_result_sse::<_, ()>((move || {
                 let mut api_that_guard = None;
                 let decode_indices_ =
                     flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
@@ -1097,8 +966,9 @@ fn wire__crate__api__MxSettings_set_string_impl(
                     }
                 }
                 let api_that_guard = api_that_guard.unwrap();
-                let output_ok =
-                    crate::api::MxSettings::set_string(&*api_that_guard, api_key, api_value)?;
+                let output_ok = Ok::<_, ()>({
+                    crate::api::MxSettings::set_string(&*api_that_guard, api_key, api_value);
+                })?;
                 std::result::Result::Ok(output_ok)
             })())
         },
@@ -1153,6 +1023,52 @@ fn wire__crate__api__MxSettings_set_toml_impl(
         },
     )
 }
+fn wire__crate__api__MxSettings_state_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "MxSettings_state",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MxSettings>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let mut api_that_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_that, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
+                    }
+                }
+                let api_that_guard = api_that_guard.unwrap();
+                let output_ok = Ok::<_, ()>(crate::api::MxSettings::state(&*api_that_guard))?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
 fn wire__crate__api__source__MxSource_create_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1177,53 +1093,6 @@ fn wire__crate__api__source__MxSource_create_impl(
             deserializer.end();
             transform_result_sse::<_, ()>((move || {
                 let output_ok = Ok::<_, ()>(crate::api::source::MxSource::create())?;
-                std::result::Result::Ok(output_ok)
-            })())
-        },
-    )
-}
-fn wire__crate__api__source__MxSource_daemon_impl(
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "MxSource_daemon",
-            port: None,
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MxSource>,
-            >>::sse_decode(&mut deserializer);
-            let api_bus = <String>::sse_decode(&mut deserializer);
-            deserializer.end();
-            transform_result_sse::<_, crate::api::MxconfigException>((move || {
-                let mut api_that_guard = None;
-                let decode_indices_ =
-                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                            &api_that, 0, false,
-                        ),
-                    ]);
-                for i in decode_indices_ {
-                    match i {
-                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
-                        _ => unreachable!(),
-                    }
-                }
-                let api_that_guard = api_that_guard.unwrap();
-                let output_ok = crate::api::source::MxSource::daemon(&*api_that_guard, api_bus)?;
                 std::result::Result::Ok(output_ok)
             })())
         },
@@ -2199,19 +2068,6 @@ impl SseDecode for crate::api::Change {
     }
 }
 
-impl SseDecode for crate::api::source::DaemonPresence {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut inner = <i32>::sse_decode(deserializer);
-        return match inner {
-            0 => crate::api::source::DaemonPresence::NoBus,
-            1 => crate::api::source::DaemonPresence::NoDaemon,
-            2 => crate::api::source::DaemonPresence::Running,
-            _ => unreachable!("Invalid variant for DaemonPresence: {}", inner),
-        };
-    }
-}
-
 impl SseDecode for crate::api::Describe {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -2334,6 +2190,18 @@ impl SseDecode for Vec<String> {
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
             ans_.push(<String>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::Change> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::Change>::sse_decode(deserializer));
         }
         return ans_;
     }
@@ -2519,6 +2387,7 @@ impl SseDecode for crate::api::source::MxOutcome {
         let mut var_error = <Option<crate::api::MxconfigException>>::sse_decode(deserializer);
         let mut var_detach = <Option<crate::api::source::DetachCause>>::sse_decode(deserializer);
         let mut var_diagnostics = <Vec<crate::api::Diagnostic>>::sse_decode(deserializer);
+        let mut var_current = <Vec<crate::api::Change>>::sse_decode(deserializer);
         let mut var_namespace = <String>::sse_decode(deserializer);
         let mut var_asset = <Option<String>>::sse_decode(deserializer);
         return crate::api::source::MxOutcome {
@@ -2529,6 +2398,7 @@ impl SseDecode for crate::api::source::MxOutcome {
             error: var_error,
             detach: var_detach,
             diagnostics: var_diagnostics,
+            current: var_current,
             namespace: var_namespace,
             asset: var_asset,
         };
@@ -2541,7 +2411,7 @@ impl SseDecode for crate::api::source::MxOutcomeKind {
         let mut inner = <i32>::sse_decode(deserializer);
         return match inner {
             0 => crate::api::source::MxOutcomeKind::Opened,
-            1 => crate::api::source::MxOutcomeKind::Written,
+            1 => crate::api::source::MxOutcomeKind::WriteFailed,
             2 => crate::api::source::MxOutcomeKind::Changed,
             3 => crate::api::source::MxOutcomeKind::Asset,
             4 => crate::api::source::MxOutcomeKind::Detached,
@@ -2563,6 +2433,50 @@ impl SseDecode for crate::api::source::MxRule {
             interface: var_interface_,
             member: var_member,
             arg0: var_arg0,
+        };
+    }
+}
+
+impl SseDecode for crate::api::MxState {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_kind = <crate::api::MxStateKind>::sse_decode(deserializer);
+        let mut var_version = <Option<u32>>::sse_decode(deserializer);
+        let mut var_unserved = <Option<crate::api::MxUnserved>>::sse_decode(deserializer);
+        let mut var_detach = <Option<crate::api::source::DetachCause>>::sse_decode(deserializer);
+        return crate::api::MxState {
+            kind: var_kind,
+            version: var_version,
+            unserved: var_unserved,
+            detach: var_detach,
+        };
+    }
+}
+
+impl SseDecode for crate::api::MxStateKind {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::MxStateKind::Live,
+            1 => crate::api::MxStateKind::ReadOnly,
+            2 => crate::api::MxStateKind::Defaults,
+            3 => crate::api::MxStateKind::Detached,
+            _ => unreachable!("Invalid variant for MxStateKind: {}", inner),
+        };
+    }
+}
+
+impl SseDecode for crate::api::MxUnserved {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::MxUnserved::NoBus,
+            1 => crate::api::MxUnserved::NoDaemon,
+            2 => crate::api::MxUnserved::NotServed,
+            3 => crate::api::MxUnserved::Version,
+            _ => unreachable!("Invalid variant for MxUnserved: {}", inner),
         };
     }
 }
@@ -2656,6 +2570,17 @@ impl SseDecode for Option<i64> {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<i64>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<crate::api::MxUnserved> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::MxUnserved>::sse_decode(deserializer));
         } else {
             return None;
         }
@@ -2762,47 +2687,44 @@ fn pde_ffi_dispatcher_sync_impl(
     match func_id {
         1 => wire__crate__api__MxSettings_asset_impl(ptr, rust_vec_len, data_len),
         2 => wire__crate__api__MxSettings_authorize_impl(ptr, rust_vec_len, data_len),
-        3 => wire__crate__api__MxSettings_describe_impl(ptr, rust_vec_len, data_len),
-        4 => wire__crate__api__MxSettings_diagnostics_impl(ptr, rust_vec_len, data_len),
-        5 => wire__crate__api__MxSettings_from_daemon_impl(ptr, rust_vec_len, data_len),
+        3 => wire__crate__api__MxSettings_clear_impl(ptr, rust_vec_len, data_len),
+        4 => wire__crate__api__MxSettings_describe_impl(ptr, rust_vec_len, data_len),
+        5 => wire__crate__api__MxSettings_diagnostics_impl(ptr, rust_vec_len, data_len),
         6 => wire__crate__api__MxSettings_get_bool_impl(ptr, rust_vec_len, data_len),
         7 => wire__crate__api__MxSettings_get_double_impl(ptr, rust_vec_len, data_len),
         8 => wire__crate__api__MxSettings_get_int_impl(ptr, rust_vec_len, data_len),
         9 => wire__crate__api__MxSettings_get_string_impl(ptr, rust_vec_len, data_len),
         10 => wire__crate__api__MxSettings_get_toml_impl(ptr, rust_vec_len, data_len),
         11 => wire__crate__api__MxSettings_namespace_impl(ptr, rust_vec_len, data_len),
-        12 => wire__crate__api__MxSettings_on_defaults_impl(ptr, rust_vec_len, data_len),
-        13 => wire__crate__api__MxSettings_other_version_impl(ptr, rust_vec_len, data_len),
-        14 => wire__crate__api__MxSettings_remove_impl(ptr, rust_vec_len, data_len),
-        15 => wire__crate__api__MxSettings_remove_asset_impl(ptr, rust_vec_len, data_len),
-        16 => wire__crate__api__MxSettings_revision_impl(ptr, rust_vec_len, data_len),
-        17 => wire__crate__api__MxSettings_set_asset_impl(ptr, rust_vec_len, data_len),
-        18 => wire__crate__api__MxSettings_set_asset_file_impl(ptr, rust_vec_len, data_len),
-        19 => wire__crate__api__MxSettings_set_bool_impl(ptr, rust_vec_len, data_len),
-        20 => wire__crate__api__MxSettings_set_double_impl(ptr, rust_vec_len, data_len),
-        21 => wire__crate__api__MxSettings_set_int_impl(ptr, rust_vec_len, data_len),
-        22 => wire__crate__api__MxSettings_set_string_impl(ptr, rust_vec_len, data_len),
-        23 => wire__crate__api__MxSettings_set_toml_impl(ptr, rust_vec_len, data_len),
-        24 => wire__crate__api__source__MxSource_create_impl(ptr, rust_vec_len, data_len),
-        25 => wire__crate__api__source__MxSource_daemon_impl(ptr, rust_vec_len, data_len),
-        26 => wire__crate__api__source__MxSource_embed_impl(ptr, rust_vec_len, data_len),
-        27 => wire__crate__api__source__MxSource_open_schema_impl(ptr, rust_vec_len, data_len),
-        28 => wire__crate__api__source__MxSource_outcomes_impl(ptr, rust_vec_len, data_len),
-        29 => wire__crate__api__source__MxSource_request_impl(ptr, rust_vec_len, data_len),
-        30 => wire__crate__api__source__MxSource_rescan_impl(ptr, rust_vec_len, data_len),
-        31 => wire__crate__api__source__MxSource_set_app_impl(ptr, rust_vec_len, data_len),
-        32 => wire__crate__api__source__MxSource_take_watch_dirs_impl(ptr, rust_vec_len, data_len),
-        33 => wire__crate__api__source__MxSource_touched_impl(ptr, rust_vec_len, data_len),
-        34 => wire__crate__api__source__MxSource_transport_impl(ptr, rust_vec_len, data_len),
-        35 => wire__crate__api__source__MxSource_with_user_dir_impl(ptr, rust_vec_len, data_len),
-        36 => wire__crate__api__source__MxTransport_close_impl(ptr, rust_vec_len, data_len),
-        37 => wire__crate__api__source__MxTransport_fail_impl(ptr, rust_vec_len, data_len),
-        38 => wire__crate__api__source__MxTransport_reach_impl(ptr, rust_vec_len, data_len),
-        39 => wire__crate__api__source__MxTransport_reply_impl(ptr, rust_vec_len, data_len),
-        40 => wire__crate__api__source__MxTransport_rules_impl(ptr, rust_vec_len, data_len),
-        41 => wire__crate__api__source__MxTransport_signal_impl(ptr, rust_vec_len, data_len),
-        42 => wire__crate__api__source__MxTransport_take_calls_impl(ptr, rust_vec_len, data_len),
-        43 => wire__crate__api__source__MxTransport_take_released_impl(ptr, rust_vec_len, data_len),
+        12 => wire__crate__api__MxSettings_remove_asset_impl(ptr, rust_vec_len, data_len),
+        13 => wire__crate__api__MxSettings_revision_impl(ptr, rust_vec_len, data_len),
+        14 => wire__crate__api__MxSettings_set_asset_impl(ptr, rust_vec_len, data_len),
+        15 => wire__crate__api__MxSettings_set_asset_file_impl(ptr, rust_vec_len, data_len),
+        16 => wire__crate__api__MxSettings_set_bool_impl(ptr, rust_vec_len, data_len),
+        17 => wire__crate__api__MxSettings_set_double_impl(ptr, rust_vec_len, data_len),
+        18 => wire__crate__api__MxSettings_set_int_impl(ptr, rust_vec_len, data_len),
+        19 => wire__crate__api__MxSettings_set_string_impl(ptr, rust_vec_len, data_len),
+        20 => wire__crate__api__MxSettings_set_toml_impl(ptr, rust_vec_len, data_len),
+        21 => wire__crate__api__MxSettings_state_impl(ptr, rust_vec_len, data_len),
+        22 => wire__crate__api__source__MxSource_create_impl(ptr, rust_vec_len, data_len),
+        23 => wire__crate__api__source__MxSource_embed_impl(ptr, rust_vec_len, data_len),
+        24 => wire__crate__api__source__MxSource_open_schema_impl(ptr, rust_vec_len, data_len),
+        25 => wire__crate__api__source__MxSource_outcomes_impl(ptr, rust_vec_len, data_len),
+        26 => wire__crate__api__source__MxSource_request_impl(ptr, rust_vec_len, data_len),
+        27 => wire__crate__api__source__MxSource_rescan_impl(ptr, rust_vec_len, data_len),
+        28 => wire__crate__api__source__MxSource_set_app_impl(ptr, rust_vec_len, data_len),
+        29 => wire__crate__api__source__MxSource_take_watch_dirs_impl(ptr, rust_vec_len, data_len),
+        30 => wire__crate__api__source__MxSource_touched_impl(ptr, rust_vec_len, data_len),
+        31 => wire__crate__api__source__MxSource_transport_impl(ptr, rust_vec_len, data_len),
+        32 => wire__crate__api__source__MxSource_with_user_dir_impl(ptr, rust_vec_len, data_len),
+        33 => wire__crate__api__source__MxTransport_close_impl(ptr, rust_vec_len, data_len),
+        34 => wire__crate__api__source__MxTransport_fail_impl(ptr, rust_vec_len, data_len),
+        35 => wire__crate__api__source__MxTransport_reach_impl(ptr, rust_vec_len, data_len),
+        36 => wire__crate__api__source__MxTransport_reply_impl(ptr, rust_vec_len, data_len),
+        37 => wire__crate__api__source__MxTransport_rules_impl(ptr, rust_vec_len, data_len),
+        38 => wire__crate__api__source__MxTransport_signal_impl(ptr, rust_vec_len, data_len),
+        39 => wire__crate__api__source__MxTransport_take_calls_impl(ptr, rust_vec_len, data_len),
+        40 => wire__crate__api__source__MxTransport_take_released_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -2872,28 +2794,6 @@ impl flutter_rust_bridge::IntoDart for crate::api::Change {
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::Change {}
 impl flutter_rust_bridge::IntoIntoDart<crate::api::Change> for crate::api::Change {
     fn into_into_dart(self) -> crate::api::Change {
-        self
-    }
-}
-// Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::source::DaemonPresence {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        match self {
-            Self::NoBus => 0.into_dart(),
-            Self::NoDaemon => 1.into_dart(),
-            Self::Running => 2.into_dart(),
-            _ => unreachable!(),
-        }
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::source::DaemonPresence
-{
-}
-impl flutter_rust_bridge::IntoIntoDart<crate::api::source::DaemonPresence>
-    for crate::api::source::DaemonPresence
-{
-    fn into_into_dart(self) -> crate::api::source::DaemonPresence {
         self
     }
 }
@@ -3077,6 +2977,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::source::MxOutcome {
             self.error.into_into_dart().into_dart(),
             self.detach.into_into_dart().into_dart(),
             self.diagnostics.into_into_dart().into_dart(),
+            self.current.into_into_dart().into_dart(),
             self.namespace.into_into_dart().into_dart(),
             self.asset.into_into_dart().into_dart(),
         ]
@@ -3096,7 +2997,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::source::MxOutcomeKind {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
             Self::Opened => 0.into_dart(),
-            Self::Written => 1.into_dart(),
+            Self::WriteFailed => 1.into_dart(),
             Self::Changed => 2.into_dart(),
             Self::Asset => 3.into_dart(),
             Self::Detached => 4.into_dart(),
@@ -3131,6 +3032,60 @@ impl flutter_rust_bridge::IntoDart for crate::api::source::MxRule {
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::source::MxRule {}
 impl flutter_rust_bridge::IntoIntoDart<crate::api::source::MxRule> for crate::api::source::MxRule {
     fn into_into_dart(self) -> crate::api::source::MxRule {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::MxState {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.kind.into_into_dart().into_dart(),
+            self.version.into_into_dart().into_dart(),
+            self.unserved.into_into_dart().into_dart(),
+            self.detach.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::MxState {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::MxState> for crate::api::MxState {
+    fn into_into_dart(self) -> crate::api::MxState {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::MxStateKind {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Live => 0.into_dart(),
+            Self::ReadOnly => 1.into_dart(),
+            Self::Defaults => 2.into_dart(),
+            Self::Detached => 3.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::MxStateKind {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::MxStateKind> for crate::api::MxStateKind {
+    fn into_into_dart(self) -> crate::api::MxStateKind {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::MxUnserved {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::NoBus => 0.into_dart(),
+            Self::NoDaemon => 1.into_dart(),
+            Self::NotServed => 2.into_dart(),
+            Self::Version => 3.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::MxUnserved {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::MxUnserved> for crate::api::MxUnserved {
+    fn into_into_dart(self) -> crate::api::MxUnserved {
         self
     }
 }
@@ -3237,23 +3192,6 @@ impl SseEncode for crate::api::Change {
     }
 }
 
-impl SseEncode for crate::api::source::DaemonPresence {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <i32>::sse_encode(
-            match self {
-                crate::api::source::DaemonPresence::NoBus => 0,
-                crate::api::source::DaemonPresence::NoDaemon => 1,
-                crate::api::source::DaemonPresence::Running => 2,
-                _ => {
-                    unimplemented!("");
-                }
-            },
-            serializer,
-        );
-    }
-}
-
 impl SseEncode for crate::api::Describe {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -3346,6 +3284,16 @@ impl SseEncode for Vec<String> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <String>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::Change> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::Change>::sse_encode(item, serializer);
         }
     }
 }
@@ -3499,6 +3447,7 @@ impl SseEncode for crate::api::source::MxOutcome {
         <Option<crate::api::MxconfigException>>::sse_encode(self.error, serializer);
         <Option<crate::api::source::DetachCause>>::sse_encode(self.detach, serializer);
         <Vec<crate::api::Diagnostic>>::sse_encode(self.diagnostics, serializer);
+        <Vec<crate::api::Change>>::sse_encode(self.current, serializer);
         <String>::sse_encode(self.namespace, serializer);
         <Option<String>>::sse_encode(self.asset, serializer);
     }
@@ -3510,7 +3459,7 @@ impl SseEncode for crate::api::source::MxOutcomeKind {
         <i32>::sse_encode(
             match self {
                 crate::api::source::MxOutcomeKind::Opened => 0,
-                crate::api::source::MxOutcomeKind::Written => 1,
+                crate::api::source::MxOutcomeKind::WriteFailed => 1,
                 crate::api::source::MxOutcomeKind::Changed => 2,
                 crate::api::source::MxOutcomeKind::Asset => 3,
                 crate::api::source::MxOutcomeKind::Detached => 4,
@@ -3531,6 +3480,52 @@ impl SseEncode for crate::api::source::MxRule {
         <String>::sse_encode(self.interface, serializer);
         <String>::sse_encode(self.member, serializer);
         <Option<String>>::sse_encode(self.arg0, serializer);
+    }
+}
+
+impl SseEncode for crate::api::MxState {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <crate::api::MxStateKind>::sse_encode(self.kind, serializer);
+        <Option<u32>>::sse_encode(self.version, serializer);
+        <Option<crate::api::MxUnserved>>::sse_encode(self.unserved, serializer);
+        <Option<crate::api::source::DetachCause>>::sse_encode(self.detach, serializer);
+    }
+}
+
+impl SseEncode for crate::api::MxStateKind {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::MxStateKind::Live => 0,
+                crate::api::MxStateKind::ReadOnly => 1,
+                crate::api::MxStateKind::Defaults => 2,
+                crate::api::MxStateKind::Detached => 3,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
+impl SseEncode for crate::api::MxUnserved {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::MxUnserved::NoBus => 0,
+                crate::api::MxUnserved::NoDaemon => 1,
+                crate::api::MxUnserved::NotServed => 2,
+                crate::api::MxUnserved::Version => 3,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
     }
 }
 
@@ -3611,6 +3606,16 @@ impl SseEncode for Option<i64> {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <i64>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<crate::api::MxUnserved> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::MxUnserved>::sse_encode(value, serializer);
         }
     }
 }

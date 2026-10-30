@@ -44,8 +44,8 @@ pub const APPLY: &str = "Apply";
 /// `WriteAsset(h file, s namespace, s id, s app)`.
 pub const WRITE_ASSET: &str = "WriteAsset";
 
-/// `ClearAsset(s namespace, s id, s app)`.
-pub const CLEAR_ASSET: &str = "ClearAsset";
+/// `RemoveAsset(s namespace, s id, s app)`.
+pub const REMOVE_ASSET: &str = "RemoveAsset";
 
 /// `ListNamespaces(s app) → as`.
 pub const LIST_NAMESPACES: &str = "ListNamespaces";

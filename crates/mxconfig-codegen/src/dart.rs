@@ -22,16 +22,22 @@ const KEYWORDS: &[&str] = &[
 /// Top-level names already used by the package and Dart core.
 const IMPORTED: &[&str] = &[
     "Change",
-    "DaemonPresence",
+    "DefaultsState",
     "DetachCause",
+    "DetachedState",
     "Describe",
     "Diagnostic",
     "GroupInfo",
     "KeyInfo",
+    "LiveState",
     "MxconfigException",
+    "ReadOnlyState",
     "Settings",
+    "SettingsState",
     "String",
     "Uint8List",
+    "Unserved",
+    "WriteFailure",
     "bool",
     "double",
     "int",
@@ -226,10 +232,10 @@ fn accessors(key: &KeySchema, scope: &mut Scope) -> Result<String, String> {
     let clear = scope.claim(format!("clear{base}"), &owner)?;
     Ok(getter
         + &format!(
-            r"  Future<void> {set}({param} value) => {write};
+            r"  void {set}({param} value) => {write};
 
   /// Unset it, so a lower layer or the default applies.
-  Future<void> {clear}() => settings.remove({lit});
+  void {clear}() => settings.clear({lit});
 
 "
         ))
@@ -246,12 +252,12 @@ fn asset_accessors(asset: &AssetSchema, scope: &mut Scope) -> Result<String, Str
     );
     if !asset.managed {
         let set = scope.claim(format!("setAsset{base}"), &owner)?;
-        let clear = scope.claim(format!("clearAsset{base}"), &owner)?;
+        let remove = scope.claim(format!("removeAsset{base}"), &owner)?;
         out += &format!(
-            r"  Future<void> {set}(Uint8List bytes) => settings.setAsset({lit}, bytes);
+            r"  void {set}(Uint8List bytes) => settings.setAsset({lit}, bytes);
 
   /// Remove the user's copy, so a lower layer applies again.
-  Future<void> {clear}() => settings.removeAsset({lit});
+  void {remove}() => settings.removeAsset({lit});
 
 "
         );

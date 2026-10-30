@@ -9,7 +9,7 @@ use common::{apply, connect, error_name, hold_as, list, next_changed, proxy, pro
 use common::{served, text, user_file};
 use futures_util::StreamExt;
 use mxconfig::host::protocol::{
-    APPLY, ASSET_CHANGED, CHANGED, CLEAR_ASSET, LIST_NAMESPACES, SUBSCRIBE, WRITE_ASSET,
+    APPLY, ASSET_CHANGED, CHANGED, LIST_NAMESPACES, REMOVE_ASSET, SUBSCRIBE, WRITE_ASSET,
 };
 
 /// `ListNamespaces` lists what the app may access.
@@ -186,7 +186,7 @@ async fn served_interface_matches_the_constant() {
     );
 
     // The names clients send and listen for are the ones served.
-    for method in [SUBSCRIBE, APPLY, WRITE_ASSET, CLEAR_ASSET, LIST_NAMESPACES] {
+    for method in [SUBSCRIBE, APPLY, WRITE_ASSET, REMOVE_ASSET, LIST_NAMESPACES] {
         assert!(
             served.contains(&format!("<method name=\"{method}\">")),
             "{method}"

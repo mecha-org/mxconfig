@@ -28,7 +28,7 @@ When a namespace goes through the daemon:
 
 - Opening is one `Subscribe` call, and `Opened` waits for the daemon's reply.
 - Reads come from that reply, replaced by each newer one.
-- A write is one atomic `Apply`. Its `Changed` arrives before `Written`.
+- A write is one atomic `Apply`. Its values arrive as `Changed`, or `WriteFailed` says why not.
 - Assets arrive as fds the daemon opened.
 - Migrations, pruning and env overrides happen in the daemon.
 
@@ -38,13 +38,13 @@ An app's own values are never made up: without its files or daemon, its open fai
 
 A shared namespace is different. An app usually reads only cosmetic things from it, and must still run outside the Mecha desktop. So when its daemon can't serve it, the open succeeds on the schema's defaults. That happens when no transport carries the bus, no daemon is running, or the daemon doesn't serve that namespace. Then:
 
-- `Settings::on_defaults()` (`onDefaults` in Dart) is true, and a diagnostic says so.
-- Writes fail as `Unreachable` while the bus isn't carried, and as `VersionConflict` when the daemon serves an incompatible version.
-- Once the bus is reached, or a daemon starts, the handle subscribes. The real values then arrive as ordinary `Changed` events.
-- If the daemon serves another version whose migrations change the app's keys, the handle stays on its defaults, with an error diagnostic naming both versions.
+- `Settings::state()` is `State::Defaults(why)`, and a diagnostic says so. `why` says which of those it is. See [handle state](reference.md#handle-state).
+- Writes fail: as `Unreachable` without the bus or the daemon, as `Unknown` when the daemon doesn't serve it, and as `VersionConflict` when it serves an incompatible version.
+- The handle stays on its defaults. A daemon that starts later is picked up when the app restarts.
+- If the daemon serves another version whose migrations change the app's keys, the diagnostic is an error naming both versions.
 - A refusal or a bad value still fails the open.
 
-An app that needs the real values, such as a settings app, checks first. `Source::daemon(bus)` (`Settings.daemon(bus:)` in Dart) says `NoBus`, `NoDaemon` or `Running`.
+An app that needs the real values, such as a settings app, checks `state()` once the handle opens.
 
 ## Schema versions
 
@@ -56,7 +56,7 @@ An app reads its settings only with the schema it was built with. So a namespace
 
 **While another version holds it,** an open either reads only or is refused:
 
-- If the migrations between the two versions leave the app's keys and assets alone, it opens and reads normally. Writes fail with `ErrorKind::VersionConflict`. `Settings::other_version()` (`otherVersion` in Dart) names the version holding it, so a settings app can grey out its controls and say which app needs a restart.
+- If the migrations between the two versions leave the app's keys and assets alone, it opens and reads normally. Writes fail with `ErrorKind::VersionConflict`. `Settings::state()` is `State::ReadOnly { holder }`, naming the version holding it, so a settings app can grey out its controls and say which app needs a restart.
 - Otherwise the open fails with `ErrorKind::VersionConflict`, naming both versions. `Error::other_version()` gives the other version when it's known.
 - Either way nothing migrates, and the running app isn't affected.
 

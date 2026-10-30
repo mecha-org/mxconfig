@@ -106,26 +106,26 @@ class Demo {
   /// When the app last ran; unset on its first launch.
   String? get lastSeen => settings.getString('last_seen');
 
-  Future<void> setLastSeen(String value) => settings.setToml('last_seen', value);
+  void setLastSeen(String value) => settings.setToml('last_seen', value);
 
   /// Unset it, so a lower layer or the default applies.
-  Future<void> clearLastSeen() => settings.remove('last_seen');
+  void clearLastSeen() => settings.clear('last_seen');
 
   /// Shown in the title bar; unset until the user picks one.
   String? get nickname => settings.getString('nickname');
 
-  Future<void> setNickname(String value) => settings.setString('nickname', value);
+  void setNickname(String value) => settings.setString('nickname', value);
 
   /// Unset it, so a lower layer or the default applies.
-  Future<void> clearNickname() => settings.remove('nickname');
+  void clearNickname() => settings.clear('nickname');
 
   /// Log extra detail. `$MECHANIX_DEMO_VERBOSE` overrides it.
   bool get verbose => settings.getBool('verbose') ?? false;
 
-  Future<void> setVerbose(bool value) => settings.setBool('verbose', value);
+  void setVerbose(bool value) => settings.setBool('verbose', value);
 
   /// Unset it, so a lower layer or the default applies.
-  Future<void> clearVerbose() => settings.remove('verbose');
+  void clearVerbose() => settings.clear('verbose');
 }
 
 /// The `colors` group of `org.mechanix.demo`.
@@ -137,34 +137,34 @@ class Colors {
   /// The color the app highlights with.
   String get accent => settings.getString('colors.accent') ?? '#7aa2f7';
 
-  Future<void> setAccent(String value) => settings.setString('colors.accent', value);
+  void setAccent(String value) => settings.setString('colors.accent', value);
 
   /// Unset it, so a lower layer or the default applies.
-  Future<void> clearAccent() => settings.remove('colors.accent');
+  void clearAccent() => settings.clear('colors.accent');
 
   /// Corner radius in pixels.
   int get cornerRadius => settings.getInt('colors.corner_radius') ?? 8;
 
-  Future<void> setCornerRadius(int value) => settings.setInt('colors.corner_radius', value);
+  void setCornerRadius(int value) => settings.setInt('colors.corner_radius', value);
 
   /// Unset it, so a lower layer or the default applies.
-  Future<void> clearCornerRadius() => settings.remove('colors.corner_radius');
+  void clearCornerRadius() => settings.clear('colors.corner_radius');
 
   /// Light or dark.
   ColorsMode get mode => ColorsMode.parse(settings.getString('colors.mode')) ?? ColorsMode.dark;
 
-  Future<void> setMode(ColorsMode value) => settings.setString('colors.mode', value.value);
+  void setMode(ColorsMode value) => settings.setString('colors.mode', value.value);
 
   /// Unset it, so a lower layer or the default applies.
-  Future<void> clearMode() => settings.remove('colors.mode');
+  void clearMode() => settings.clear('colors.mode');
 
   /// Interface scale factor.
   double get scale => settings.getDouble('colors.scale') ?? 1.0;
 
-  Future<void> setScale(double value) => settings.setDouble('colors.scale', value);
+  void setScale(double value) => settings.setDouble('colors.scale', value);
 
   /// Unset it, so a lower layer or the default applies.
-  Future<void> clearScale() => settings.remove('colors.scale');
+  void clearScale() => settings.clear('colors.scale');
 }
 
 /// A change in `org.mechanix.demo`, holding the key's new value in its type.

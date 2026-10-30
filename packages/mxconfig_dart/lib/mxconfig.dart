@@ -8,11 +8,11 @@ import 'dart:typed_data';
 import 'src/runtime.dart';
 import 'src/rust/api.dart';
 import 'src/rust/api/source.dart' as source;
-import 'src/rust/api/source.dart' show DaemonPresence, DetachCause;
+import 'src/rust/api/source.dart' show DetachCause;
 
 export 'src/rust/api.dart'
     show Change, Describe, Diagnostic, GroupInfo, KeyInfo, MxconfigException;
-export 'src/rust/api/source.dart' show DaemonPresence, DetachCause;
+export 'src/rust/api/source.dart' show DetachCause;
 
 part 'src/source.dart';
 
@@ -73,43 +73,48 @@ class Settings {
   /// The value as TOML text. Used for arrays and maps.
   String? getToml(String key) => _inner.getToml(key: key);
 
-  /// Write [value] to [key]. Completes when written.
-  Future<void> setString(String key, String value) =>
+  /// Write [value] to [key]. The new value arrives on [watch], and a
+  /// failure on [watchWriteFailed].
+  void setString(String key, String value) =>
       _write(() => _inner.setString(key: key, value: value));
 
-  Future<void> setInt(String key, int value) =>
+  void setInt(String key, int value) =>
       _write(() => _inner.setInt(key: key, value: value));
 
-  Future<void> setDouble(String key, double value) =>
+  void setDouble(String key, double value) =>
       _write(() => _inner.setDouble(key: key, value: value));
 
-  Future<void> setBool(String key, bool value) =>
+  void setBool(String key, bool value) =>
       _write(() => _inner.setBool(key: key, value: value));
 
   /// Write a TOML value such as `35` or `[1, 2]` to [key].
-  Future<void> setToml(String key, String value) =>
+  /// Throws if [value] isn't TOML.
+  void setToml(String key, String value) =>
       _write(() => _inner.setToml(key: key, value: value));
 
   /// Unset [key], so a lower layer or the default applies.
-  Future<void> remove(String key) => _write(() => _inner.remove(key: key));
+  void clear(String key) => _write(() => _inner.clear(key: key));
 
-  /// Start a write, then wait for it to finish. A refusal fails the future.
-  Future<void> _write(BigInt Function() start) async => _source.write(start());
+  /// Start a write, then send it on.
+  void _write(void Function() start) {
+    start();
+    _source.drain();
+  }
 
   /// The bytes of asset [id], or `null` when nothing sets it.
   Uint8List? asset(String id) => _inner.asset(id: id);
 
-  /// Write the user's copy of asset [id]. Completes when written.
-  Future<void> setAsset(String id, Uint8List bytes) =>
+  /// Write the user's copy of asset [id].
+  void setAsset(String id, Uint8List bytes) =>
       _write(() => _inner.setAsset(id: id, bytes: bytes));
 
   /// Copy the file at [path] as the user's copy of asset [id].
-  Future<void> setAssetFromFile(String id, String path) =>
+  /// Throws if it can't be opened.
+  void setAssetFromFile(String id, String path) =>
       _write(() => _inner.setAssetFile(id: id, path: path));
 
-  /// Remove the user's copy of asset [id]. Completes when written.
-  Future<void> removeAsset(String id) =>
-      _write(() => _inner.removeAsset(id: id));
+  /// Remove the user's copy of asset [id], so a lower layer applies.
+  void removeAsset(String id) => _write(() => _inner.removeAsset(id: id));
 
   /// Problems found while opening, migrating and reading.
   List<Diagnostic> get diagnostics => _inner.diagnostics();
@@ -140,24 +145,13 @@ class Settings {
       .where((detached) => detached.$1 == namespace)
       .map((detached) => detached.$2);
 
-  /// Whether the values come from the daemon rather than this process's own reads.
-  bool get fromDaemon => _inner.fromDaemon();
+  /// Fires for each write to this namespace that failed.
+  Stream<WriteFailure> watchWriteFailed() => _source._failed.stream
+      .where((failed) => failed.$1 == namespace)
+      .map((failed) => failed.$2);
 
-  /// Whether a shared namespace still holds its schema defaults.
-  bool get onDefaults => _inner.onDefaults();
-
-  /// The version holding the namespace, when it isn't this handle's. The handle then only reads.
-  int? get otherVersion => _inner.otherVersion();
-
-  /// Whether [bus] (`session` or `system`) is carried and its daemon running.
-  static Future<DaemonPresence> daemon(
-      {String bus = 'session', String? libraryPath}) async {
-    await ensureInitialized(libraryPath);
-    final from = _Source.standard;
-    // Wait for the buses to say who owns the daemon's name.
-    await carried;
-    return from.rust.daemon(bus: bus);
-  }
+  /// What this handle holds, and whether it can write. Check it once opened.
+  SettingsState get state => SettingsState._of(_inner.state());
 
   /// Release the native handle. Its subscription ends once no handle needs it.
   void dispose() {
@@ -165,3 +159,61 @@ class Settings {
     _source.drain();
   }
 }
+
+/// A write that failed: why, and what it touched.
+final class WriteFailure {
+  const WriteFailure._(this.error, this.current, this.asset);
+
+  final MxconfigException error;
+
+  /// The value each key the write touched holds now.
+  final List<Change> current;
+
+  /// The asset the write touched, if it wrote one.
+  final String? asset;
+}
+
+/// What a handle holds, and whether it can write.
+sealed class SettingsState {
+  const SettingsState();
+
+  static SettingsState _of(MxState state) => switch (state.kind) {
+        MxStateKind.live => const LiveState(),
+        MxStateKind.readOnly => ReadOnlyState(state.version!),
+        MxStateKind.defaults =>
+          DefaultsState(state.unserved!, served: state.version),
+        MxStateKind.detached => DetachedState(state.detach!),
+      };
+}
+
+/// The namespace's real values. Writes can go through.
+final class LiveState extends SettingsState {
+  const LiveState();
+}
+
+/// Real values, but schema version [holder] holds the namespace. Writes fail.
+final class ReadOnlyState extends SettingsState {
+  const ReadOnlyState(this.holder);
+
+  final int holder;
+}
+
+/// The schema's defaults, because no daemon serves the namespace. Writes fail.
+final class DefaultsState extends SettingsState {
+  const DefaultsState(this.why, {this.served});
+
+  final Unserved why;
+
+  /// The version mxconfigd serves, when [why] is [Unserved.version].
+  final int? served;
+}
+
+/// No longer following the namespace. The last values stay. Writes fail.
+final class DetachedState extends SettingsState {
+  const DetachedState(this.cause);
+
+  final DetachCause cause;
+}
+
+/// Why a shared namespace holds its schema defaults.
+typedef Unserved = MxUnserved;

@@ -11,7 +11,7 @@ use crate::lock;
 use crate::migrate;
 use crate::paths::{self, Home, Layer, LayerKind, Roots};
 use crate::resolve::{self, Origin, Resolved};
-use crate::settings::{Asset, Edit};
+use crate::settings::{Asset, Edit, State, Unserved};
 use crate::source::Detach;
 use crate::transport::{Bus, Change, Served};
 use crate::watch::{self, Concern, Needs, Targets, need};
@@ -71,8 +71,11 @@ enum Backing {
     Files(Files),
     /// mxconfigd, with the asset files it has passed.
     Daemon(BTreeMap<String, Served>),
-    /// The schema defaults, until the daemon serves the namespace.
-    Defaults,
+    /// The schema defaults, as no daemon serves the namespace. Writes fail with `error`.
+    Defaults {
+        why: Unserved,
+        error: Error,
+    },
 }
 
 struct Files {
@@ -206,17 +209,10 @@ impl Space {
         }
     }
 
-    /// A shared namespace on its schema defaults, until its daemon serves it.
-    pub(crate) fn defaults(schema: Schema) -> Space {
+    /// A shared namespace on its schema defaults, as no daemon serves it. `error` is why its open failed.
+    pub(crate) fn defaults(schema: Schema, why: Unserved, error: Error) -> Space {
         let resolved = resolve::defaults(&schema);
-        Space::new(schema, Backing::Defaults, resolved, 0)
-    }
-
-    /// Follow the daemon from now on, leaving the defaults.
-    pub(crate) fn follow(&mut self) {
-        if self.on_defaults() {
-            self.backing = Backing::Daemon(BTreeMap::new());
-        }
+        Space::new(schema, Backing::Defaults { why, error }, resolved, 0)
     }
 
     /// Replace its subscription, or end it with `None`.
@@ -248,7 +244,7 @@ impl Space {
     fn files_ref(&self) -> Option<&Files> {
         match &self.backing {
             Backing::Files(files) => Some(files),
-            Backing::Daemon(_) | Backing::Defaults => None,
+            Backing::Daemon(_) | Backing::Defaults { .. } => None,
         }
     }
 
@@ -256,25 +252,28 @@ impl Space {
         matches!(self.backing, Backing::Daemon(_))
     }
 
-    /// Whether it holds the schema defaults, waiting for its daemon.
-    pub(crate) fn on_defaults(&self) -> bool {
-        matches!(self.backing, Backing::Defaults)
-    }
-
-    /// The bus of the daemon this space follows or waits for.
+    /// The bus of the daemon this space is read through.
     pub(crate) fn bus(&self) -> Option<Bus> {
-        let waits = self.is_daemon() || self.on_defaults();
-        waits.then(|| Bus::serving(self.schema.class()))
+        self.is_daemon().then(|| Bus::serving(self.schema.class()))
     }
 
     /// The bus of the daemon it follows, unless detached.
     pub(crate) fn following(&self) -> Option<Bus> {
-        self.waits_on().filter(|_| self.is_daemon())
+        self.bus().filter(|_| self.detached.is_none())
     }
 
-    /// The bus of the daemon it follows or waits for, unless detached.
-    pub(crate) fn waits_on(&self) -> Option<Bus> {
-        self.bus().filter(|_| self.detached.is_none())
+    /// What it holds, and whether it can write.
+    pub(crate) fn handle_state(&self) -> State {
+        if let Some(cause) = self.detached {
+            return State::Detached(cause);
+        }
+        if let Backing::Defaults { why, .. } = self.backing {
+            return State::Defaults(why);
+        }
+        match self.other {
+            Some(holder) => State::ReadOnly { holder },
+            None => State::Live,
+        }
     }
 
     /// The bus `edits` go to, or `None` for local files.
@@ -288,6 +287,7 @@ impl Space {
         if edits.is_empty() {
             return Ok(None);
         }
+        self.served()?;
         // A space that follows a daemon writes through it.
         Ok(self.bus())
     }
@@ -309,18 +309,17 @@ impl Space {
             all.push(Diagnostic::error(e.to_string()));
         }
         let namespace = self.schema.namespace();
-        let version = self.schema.version();
-        match (self.other, self.bus().filter(|_| self.on_defaults())) {
-            (Some(other), Some(_)) => all.push(Diagnostic::error(format!(
-                "`{namespace}` is at schema v{other}, and this is v{version}, so this handle keeps its defaults and only reads"
-            ))),
-            (Some(other), None) => all.push(Diagnostic::warning(format!(
+        if let Backing::Defaults { why, .. } = self.backing {
+            let message = format!("`{namespace}` holds its schema defaults, as {why}");
+            // Only another version is a real problem. The rest mean no daemon serves it.
+            all.push(match why {
+                Unserved::Version { .. } => Diagnostic::error(message),
+                _ => Diagnostic::warning(message),
+            });
+        } else if let Some(other) = self.other {
+            all.push(Diagnostic::warning(format!(
                 "`{namespace}` is held at schema v{other}, so this handle only reads"
-            ))),
-            (None, Some(bus)) => all.push(Diagnostic::warning(format!(
-                "`{namespace}` holds its schema defaults until {bus} serves it"
-            ))),
-            (None, None) => {}
+            )));
         }
         all
     }
@@ -366,6 +365,14 @@ impl Space {
             return Err(Error::version_conflict(what, other, self.schema.version()));
         }
         Ok(())
+    }
+
+    /// Fail if the space holds its defaults, as nothing can take a write then.
+    pub(crate) fn served(&self) -> Result<(), Error> {
+        match &self.backing {
+            Backing::Defaults { error, .. } => Err(error.clone()),
+            _ => Ok(()),
+        }
     }
 
     /// Whether a followed file moved to another version.
@@ -496,7 +503,7 @@ impl Space {
         let decl = self.schema.asset(id)?;
         let files = match &self.backing {
             Backing::Files(files) => files,
-            Backing::Defaults => return None,
+            Backing::Defaults { .. } => return None,
             Backing::Daemon(served) => {
                 let served = served.get(id)?.clone();
                 let path = served.path.clone();

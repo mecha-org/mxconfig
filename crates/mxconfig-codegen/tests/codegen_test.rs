@@ -122,7 +122,12 @@ fn the_rust_face_is_typed_and_complete() {
     // The namespace and schema are on the trait, and opening is on the `Source`.
     lacks(
         &code,
-        &["pub const NAMESPACE", "pub fn open(", "pub fn watch("],
+        &[
+            "pub const NAMESPACE",
+            "pub fn open(",
+            "pub fn watch(",
+            "Ticket",
+        ],
     );
     has(
         &code,
@@ -138,8 +143,8 @@ fn the_rust_face_is_typed_and_complete() {
             "    ColorsMode(ColorsMode),",
             "    Nickname(Option<String>),",
             "\"colors.accent\" => DemoChange::ColorsAccent(",
-            // Writes return a ticket.
-            "-> Result<mxconfig::Ticket<mxconfig::Write>, mxconfig::Error> {",
+            // Writes return nothing. Their results arrive as events.
+            "pub fn clear_corner_radius(&self) {",
             // Groups have accessors with typed getters and setters.
             "pub fn colors(&self) -> Colors {",
             "pub fn accent(&self) -> String {",
@@ -200,14 +205,14 @@ fn the_dart_face_is_typed_and_complete() {
             "String get accent => settings.getString('colors.accent') ?? '#7aa2f7';",
             "int get cornerRadius => settings.getInt('colors.corner_radius') ?? 8;",
             // Setters are typed and call the matching runtime method.
-            "Future<void> setAccent(String value) => settings.setString('colors.accent', value);",
-            "Future<void> clearAccent() => settings.remove('colors.accent');",
+            "void setAccent(String value) => settings.setString('colors.accent', value);",
+            "void clearAccent() => settings.clear('colors.accent');",
             "enum ColorsMode {",
             "light('light'),",
             "dark('dark');",
             "static ColorsMode? parse(String? text)",
             "ColorsMode get mode => ColorsMode.parse(settings.getString('colors.mode')) ?? ColorsMode.dark;",
-            "Future<void> setMode(ColorsMode value) => settings.setString('colors.mode', value.value);",
+            "void setMode(ColorsMode value) => settings.setString('colors.mode', value.value);",
             // Changes are a sealed type with a typed class per key.
             "sealed class DemoChange<T> {",
             "  const DemoChange(this.value);\n\n  final T value;",
@@ -300,7 +305,7 @@ description = "Panel brightness."
             "pub fn asset_layout(&self) -> Option<mxconfig::Asset>",
             "pub fn set_asset_layout",
             "pub fn set_asset_layout_from(&self, file: std::os::fd::OwnedFd)",
-            "pub fn clear_asset_layout",
+            "pub fn remove_asset_layout",
             // Asset changes are typed too.
             "    AssetLayout,",
             "fn asset_change(id: &str) -> Option<DemoChange> {",
@@ -313,7 +318,7 @@ description = "Panel brightness."
         &dart,
         &[
             "Uint8List? assetLayout()",
-            "Future<void> setAssetLayout",
+            "void setAssetLayout",
             "import 'dart:typed_data';",
             "'layout' => const AssetLayoutChange(),",
             "final class AssetLayoutChange extends DemoChange<Null> {\n  const AssetLayoutChange() : super(null);",
@@ -520,7 +525,7 @@ fn managed_keys_keep_only_their_getter_in_rust() {
             "set_lock",
             "clear_lock",
             "Edit::set(\"display.brightness\"",
-            "Edit::remove(\"lock\")",
+            "Edit::clear(\"lock\")",
         ],
     );
 }
@@ -535,9 +540,9 @@ fn managed_keys_keep_only_their_getter_in_dart() {
             "int get brightness => settings.getInt('display.brightness') ?? 50;",
             "DisplayMode get mode =>",
             "String? get lock => settings.getString('lock');",
-            "Future<void> setContrast(int value)",
-            "Future<void> clearContrast()",
-            "Future<void> setVolume(int value)",
+            "void setContrast(int value)",
+            "void clearContrast()",
+            "void setVolume(int value)",
         ],
     );
     lacks(
@@ -549,7 +554,7 @@ fn managed_keys_keep_only_their_getter_in_dart() {
             "clearMode",
             "setLock",
             "clearLock",
-            "settings.remove('lock')",
+            "settings.clear('lock')",
             "settings.setInt('display.brightness'",
         ],
     );
@@ -590,7 +595,7 @@ fn a_managed_asset_keeps_only_its_getter() {
             "\"layout\" => Some(DemoChange::AssetLayout),",
             "pub fn set_asset_theme(&self, bytes: &[u8])",
             "pub fn set_asset_theme_from(&self, file: std::os::fd::OwnedFd)",
-            "pub fn clear_asset_theme(&self)",
+            "pub fn remove_asset_theme(&self)",
         ],
     );
     lacks(
@@ -598,10 +603,10 @@ fn a_managed_asset_keeps_only_its_getter() {
         &[
             "set_asset_layout",
             "set_asset_layout_from",
-            "clear_asset_layout",
+            "remove_asset_layout",
             "write_asset(\"layout\"",
             "write_asset_from(\"layout\"",
-            "clear_asset(\"layout\")",
+            "remove_asset(\"layout\")",
         ],
     );
 
@@ -611,15 +616,15 @@ fn a_managed_asset_keeps_only_its_getter() {
         &[
             "Uint8List? assetLayout() => settings.asset('layout');",
             "import 'dart:typed_data';",
-            "Future<void> setAssetTheme(Uint8List bytes)",
-            "Future<void> clearAssetTheme()",
+            "void setAssetTheme(Uint8List bytes)",
+            "void removeAssetTheme()",
         ],
     );
     lacks(
         &dart,
         &[
             "setAssetLayout",
-            "clearAssetLayout",
+            "removeAssetLayout",
             "setAsset('layout'",
             "removeAsset('layout')",
         ],
