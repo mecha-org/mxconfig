@@ -3,10 +3,7 @@
 use heck::ToSnakeCase;
 use mxconfig_schema::{AssetSchema, KeySchema, KeyType, Schema, Value};
 
-use crate::{
-    Scope, asset_type, default, doc, float, header, ident, key_doc, owner, pascal, path_type,
-    type_name,
-};
+use crate::{Scope, default, doc, float, header, ident, key_doc, owner};
 
 /// Rust keywords, which can't be used as identifiers.
 const KEYWORDS: &[&str] = &[
@@ -17,11 +14,37 @@ const KEYWORDS: &[&str] = &[
     "unsafe", "unsized", "use", "virtual", "where", "while", "yield",
 ];
 
+/// Prelude trait methods that take `self` by value, which a call would pick over ours.
+const BY_VALUE: &[&str] = &["into", "try_into"];
+
+/// What goes before a name that starts with a digit.
+const LEAD: &str = "_";
+
+/// The namespace's type name.
+pub(crate) fn type_name(namespace: &str) -> String {
+    crate::type_name(namespace, LEAD)
+}
+
+/// `name` as a type name.
+fn pascal(name: &str) -> String {
+    crate::pascal(name, LEAD)
+}
+
+/// The type name for a key's path.
+fn path_type(key: &KeySchema) -> String {
+    crate::path_type(key, LEAD)
+}
+
+/// The type name for an asset.
+fn asset_type(asset: &AssetSchema) -> String {
+    crate::asset_type(asset, LEAD)
+}
+
 /// Emit a typed Rust client for `schema`.
 pub fn rust(schema: &Schema) -> Result<String, String> {
     let ns = schema.namespace();
     let ns_ty = type_name(ns);
-    let mut types = Scope::new("the module", &[]);
+    let mut types = Scope::new("the module");
     types.claim(ns_ty.clone(), "the namespace")?;
     types.claim(format!("{ns_ty}Change"), "the change enum")?;
 
@@ -33,14 +56,13 @@ pub fn rust(schema: &Schema) -> Result<String, String> {
         }
     }
 
-    let reserved = ["from_settings", "settings"];
-    let mut members = Scope::new(format!("`{ns_ty}`"), &reserved);
+    let mut members = Scope::new(format!("`{ns_ty}`"));
     let mut body = String::new();
     let mut groups = String::new();
     for group in schema.groups() {
         let owner = owner("group", &group.id);
         let group_ty = types.claim(pascal(&group.id), &owner)?;
-        let name = members.claim(snake(&group.id), &owner)?;
+        let name = members.claim(snake(&group.id, NS_MEMBERS), &owner)?;
         body += &format!(
             r"    pub fn {name}(&self) -> {group_ty} {{
         {group_ty} {{
@@ -50,10 +72,10 @@ pub fn rust(schema: &Schema) -> Result<String, String> {
 
 "
         );
-        let mut scope = Scope::new(format!("`{group_ty}`"), &["settings"]);
+        let mut scope = Scope::new(format!("`{group_ty}`"));
         let keys: String = schema
             .in_group(&group.id)
-            .map(|key| accessors(key, &mut scope))
+            .map(|key| accessors(key, &mut scope, &[]))
             .collect::<Result<_, _>>()?;
         groups += &format!(
             r#"
@@ -61,7 +83,7 @@ pub fn rust(schema: &Schema) -> Result<String, String> {
 #[derive(Debug, Clone)]
 #[allow(dead_code, reason = "an app may use only part of a client")]
 pub struct {group_ty} {{
-    settings: mxconfig::Settings,
+    settings: ::mxconfig::Settings,
 }}
 
 #[allow(dead_code, reason = "an app may use only part of a client")]
@@ -74,7 +96,7 @@ impl {group_ty} {{
         );
     }
     for key in schema.in_group("") {
-        body += &accessors(key, &mut members)?;
+        body += &accessors(key, &mut members, NS_MEMBERS)?;
     }
     for asset in schema.assets() {
         body += &asset_accessors(asset, &mut members)?;
@@ -86,13 +108,13 @@ impl {group_ty} {{
 /// A typed handle on `{ns}`.
 #[derive(Debug, Clone)]
 pub struct {ns_ty} {{
-    settings: mxconfig::Settings,
+    settings: ::mxconfig::Settings,
 }}
 
 #[allow(dead_code, reason = "an app may use only part of a client")]
 impl {ns_ty} {{
     /// The untyped handle: its schema, revision and diagnostics.
-    pub fn settings(&self) -> &mxconfig::Settings {{
+    pub fn settings(&self) -> &::mxconfig::Settings {{
         &self.settings
     }}
 
@@ -105,14 +127,21 @@ impl {ns_ty} {{
     Ok(out)
 }
 
-/// `name` as a function or field name.
-fn snake(name: &str) -> String {
-    ident(name.to_snake_case(), KEYWORDS)
+/// The namespace type's own methods.
+const NS_MEMBERS: &[&str] = &["settings"];
+
+/// `name` as a method name, with `_` added if it is a keyword or in `taken`.
+fn snake(name: &str, taken: &[&str]) -> String {
+    ident(
+        name.to_snake_case(),
+        &[KEYWORDS, BY_VALUE, taken].concat(),
+        LEAD,
+    )
 }
 
 /// The enum type for an enum key.
 fn enumeration(key: &KeySchema, ty: &str, values: &[String]) -> Result<String, String> {
-    let mut variants = Scope::new(format!("`{ty}`"), &[]);
+    let mut variants = Scope::new(format!("`{ty}`"));
     let default = key.default.as_ref().and_then(Value::as_str);
     let (mut decls, mut spell, mut parse) = (String::new(), String::new(), String::new());
     for value in values {
@@ -122,7 +151,7 @@ fn enumeration(key: &KeySchema, ty: &str, values: &[String]) -> Result<String, S
         }
         decls += &format!("    {variant},\n");
         spell += &format!("            {ty}::{variant} => {value:?},\n");
-        parse += &format!("            {value:?} => Some({ty}::{variant}),\n");
+        parse += &format!("            {value:?} => {SOME}({ty}::{variant}),\n");
     }
     let derive = match default {
         Some(_) => "Debug, Clone, Copy, PartialEq, Eq, Default",
@@ -145,9 +174,9 @@ impl {ty} {{
     }}
 
     /// The value spelled `text` in the schema, if any.
-    pub fn parse(text: &str) -> Option<Self> {{
+    pub fn parse(text: &str) -> ::core::option::Option<Self> {{
         match text {{
-{parse}            _ => None,
+{parse}            _ => {NONE},
         }}
     }}
 }}
@@ -157,10 +186,10 @@ impl {ty} {{
 }
 
 /// A key's getter, and its setter and clearer unless it is managed.
-fn accessors(key: &KeySchema, scope: &mut Scope) -> Result<String, String> {
+fn accessors(key: &KeySchema, scope: &mut Scope, taken: &[&str]) -> Result<String, String> {
     let owner = owner("key", &key.path);
     let base = key.id.to_snake_case();
-    let name = scope.claim(snake(&key.id), &owner)?;
+    let name = scope.claim(snake(&key.id, taken), &owner)?;
     let Kind {
         ty,
         param,
@@ -185,12 +214,12 @@ fn accessors(key: &KeySchema, scope: &mut Scope) -> Result<String, String> {
     Ok(getter
         + &format!(
             r"    pub fn {set}(&self, value: {param}) {{
-        self.settings.write(&[mxconfig::Edit::set({lit}, {write})]);
+        self.settings.write(&[::mxconfig::Edit::set({lit}, {write})]);
     }}
 
     /// Unset it, so a lower layer or the default applies.
     pub fn {clear}(&self) {{
-        self.settings.write(&[mxconfig::Edit::clear({lit})]);
+        self.settings.write(&[::mxconfig::Edit::clear({lit})]);
     }}
 
 "
@@ -205,7 +234,7 @@ fn asset_accessors(asset: &AssetSchema, scope: &mut Scope) -> Result<String, Str
     let name = scope.claim(format!("asset_{base}"), &owner)?;
     let mut out = format!(
         r"    /// The file that wins for this asset, if any layer sets it.
-    pub fn {name}(&self) -> Option<mxconfig::Asset> {{
+    pub fn {name}(&self) -> ::core::option::Option<::mxconfig::Asset> {{
         self.settings.asset({lit})
     }}
 
@@ -221,7 +250,7 @@ fn asset_accessors(asset: &AssetSchema, scope: &mut Scope) -> Result<String, Str
     }}
 
     /// Copy a regular file as the user's copy.
-    pub fn {from}(&self, file: std::os::fd::OwnedFd) {{
+    pub fn {from}(&self, file: ::std::os::fd::OwnedFd) {{
         self.settings.write_asset_from({lit}, file);
     }}
 
@@ -238,7 +267,7 @@ fn asset_accessors(asset: &AssetSchema, scope: &mut Scope) -> Result<String, Str
 
 /// The change enum and the `Namespace` impl that produces it.
 fn changes(schema: &Schema, ns_ty: &str) -> Result<String, String> {
-    let mut variants = Scope::new(format!("`{ns_ty}Change`"), &[]);
+    let mut variants = Scope::new(format!("`{ns_ty}Change`"));
     let (mut list, mut keys, mut assets) = (String::new(), String::new(), String::new());
     for key in schema.keys() {
         let variant = variants.claim(path_type(key), &owner("key", &key.path))?;
@@ -253,17 +282,19 @@ fn changes(schema: &Schema, ns_ty: &str) -> Result<String, String> {
         let variant = variants.claim(asset_type(asset), &owner("asset", &asset.id))?;
         list += &format!("    {variant},\n");
         assets += &format!(
-            "            {:?} => Some({ns_ty}Change::{variant}),\n",
+            "            {:?} => {SOME}({ns_ty}Change::{variant}),\n",
             asset.id
         );
     }
     let change = if keys.is_empty() {
-        format!("fn change(_: &mxconfig::Change) -> Option<{ns_ty}Change> {{\n        None\n    }}")
+        format!(
+            "fn change(_: &::mxconfig::Change) -> ::core::option::Option<{ns_ty}Change> {{\n        {NONE}\n    }}"
+        )
     } else {
         format!(
-            "fn change(change: &mxconfig::Change) -> Option<{ns_ty}Change> {{
-        Some(match change.key.as_str() {{
-{keys}            _ => return None,
+            "fn change(change: &::mxconfig::Change) -> ::core::option::Option<{ns_ty}Change> {{
+        {SOME}(match change.key.as_str() {{
+{keys}            _ => return {NONE},
         }})
     }}"
         )
@@ -275,9 +306,9 @@ fn changes(schema: &Schema, ns_ty: &str) -> Result<String, String> {
         format!(
             "
 
-    fn asset_change(id: &str) -> Option<{ns_ty}Change> {{
+    fn asset_change(id: &str) -> ::core::option::Option<{ns_ty}Change> {{
         match id {{
-{assets}            _ => None,
+{assets}            _ => {NONE},
         }}
     }}"
         )
@@ -289,13 +320,13 @@ fn changes(schema: &Schema, ns_ty: &str) -> Result<String, String> {
 pub enum {ns_ty}Change {{
 {list}}}
 
-impl mxconfig::FromSettings for {ns_ty} {{
-    fn from_settings(settings: mxconfig::Settings) -> Self {{
+impl ::mxconfig::FromSettings for {ns_ty} {{
+    fn from_settings(settings: ::mxconfig::Settings) -> Self {{
         Self {{ settings }}
     }}
 }}
 
-impl mxconfig::Namespace for {ns_ty} {{
+impl ::mxconfig::Namespace for {ns_ty} {{
     const NAMESPACE: &'static str = {ns:?};
     const SCHEMA: &'static str = {source};
     type Change = {ns_ty}Change;
@@ -320,37 +351,55 @@ struct Kind {
     write: String,
 }
 
+/// The standard string type, written in full so no generated type hides it.
+const STRING: &str = "::std::string::String";
+
+/// `Some`, written in full so no name in the app's module hides it.
+const SOME: &str = "::core::option::Option::Some";
+
+/// `None`, written in full so no name in the app's module hides it.
+const NONE: &str = "::core::option::Option::None";
+
 /// The generated code for each key type.
 fn kind(key: &KeySchema) -> Result<Kind, String> {
     let enum_ty = path_type(key);
     let enum_read = format!("v.as_str().and_then({enum_ty}::parse)");
+    let into = format!("impl ::core::convert::Into<{STRING}>");
     // Per type: the Rust type, its `mxconfig::Value` variant, and code reading `v`.
     let (ty, variant, read) = match &key.ty {
-        KeyType::String => ("String", "String", "v.as_str().map(str::to_string)"),
-        KeyType::Datetime => ("mxconfig::Datetime", "Datetime", "v.as_datetime().copied()"),
+        KeyType::String => (STRING, "String", "v.as_str().map(str::to_string)"),
+        KeyType::Datetime => (
+            "::mxconfig::Datetime",
+            "Datetime",
+            "v.as_datetime().copied()",
+        ),
         KeyType::Integer => ("i64", "Integer", "v.as_integer()"),
-        KeyType::Float => ("f64", "Float", "mxconfig::value::as_f64(&v)"),
+        KeyType::Float => ("f64", "Float", "::mxconfig::value::as_f64(&v)"),
         KeyType::Bool => ("bool", "Boolean", "v.as_bool()"),
         KeyType::Enum(_) => (enum_ty.as_str(), "String", enum_read.as_str()),
-        KeyType::Array(_) => ("Vec<mxconfig::Value>", "Array", "v.as_array().cloned()"),
-        KeyType::Map(_) => ("mxconfig::Table", "Table", "v.as_table().cloned()"),
+        KeyType::Array(_) => (
+            "::std::vec::Vec<::mxconfig::Value>",
+            "Array",
+            "v.as_array().cloned()",
+        ),
+        KeyType::Map(_) => ("::mxconfig::Table", "Table", "v.as_table().cloned()"),
     };
     // The setter's parameter, and the variant's payload built from it.
     let (param, payload) = match key.ty {
-        KeyType::String => ("impl Into<String>", "value.into()"),
+        KeyType::String => (into.as_str(), "value.into()"),
         KeyType::Enum(_) => (ty, "value.as_str().to_string()"),
         _ => (ty, "value"),
     };
     let read = format!(".and_then(|v| {read})");
     let (ty, read) = match fallback(key, &enum_ty)? {
         Some(fallback) => (ty.to_string(), format!("{read}{fallback}")),
-        None => (format!("Option<{ty}>"), read),
+        None => (format!("::core::option::Option<{ty}>"), read),
     };
     Ok(Kind {
         ty,
         param: param.to_string(),
         read,
-        write: format!("mxconfig::Value::{variant}({payload})"),
+        write: format!("::mxconfig::Value::{variant}({payload})"),
     })
 }
 

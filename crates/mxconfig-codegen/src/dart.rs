@@ -3,10 +3,7 @@
 use heck::{ToLowerCamelCase, ToUpperCamelCase};
 use mxconfig_schema::{AssetSchema, KeySchema, KeyType, Schema, Value};
 
-use crate::{
-    Scope, asset_type, default, doc, float, header, ident, key_doc, owner, pascal, path_type,
-    type_name,
-};
+use crate::{Scope, default, doc, float, header, ident, key_doc, owner};
 
 /// The Dart package the generated clients use.
 const PACKAGE: &str = "mxconfig_dart";
@@ -19,49 +16,54 @@ const KEYWORDS: &[&str] = &[
     "with",
 ];
 
-/// Top-level names already used by the package and Dart core.
-const IMPORTED: &[&str] = &[
-    "Change",
-    "DefaultsState",
-    "DetachCause",
-    "DetachedState",
-    "Describe",
-    "Diagnostic",
-    "GroupInfo",
-    "KeyInfo",
-    "LiveState",
-    "MxconfigException",
-    "ReadOnlyState",
-    "Settings",
-    "SettingsState",
-    "String",
-    "Uint8List",
-    "Unserved",
-    "WriteFailure",
-    "bool",
-    "double",
-    "int",
-    "namespace",
-    "schema",
-];
-
 /// Members of every Dart object.
 const OBJECT: &[&str] = &["hashCode", "noSuchMethod", "runtimeType", "toString"];
+
+/// The namespace class's own members, and the top-level names its `open` reads.
+const NS_MEMBERS: &[&str] = &["changes", "namespace", "open", "schema", "settings"];
+
+/// A group class's own members.
+const GROUP_MEMBERS: &[&str] = &["settings"];
+
+/// The members of an enum and of its values.
+const ENUM_MEMBERS: &[&str] = &["index", "name", "parse", "value", "values"];
+
+/// What goes before a name that starts with a digit. A leading `_` would make it private.
+const LEAD: &str = "$";
+
+/// The namespace's type name.
+pub(crate) fn type_name(namespace: &str) -> String {
+    crate::type_name(namespace, LEAD)
+}
+
+/// `name` as a type name.
+fn pascal(name: &str) -> String {
+    crate::pascal(name, LEAD)
+}
+
+/// The type name for a key's path.
+fn path_type(key: &KeySchema) -> String {
+    crate::path_type(key, LEAD)
+}
+
+/// The type name for an asset.
+fn asset_type(asset: &AssetSchema) -> String {
+    crate::asset_type(asset, LEAD)
+}
 
 /// Emit a typed Dart client for `schema`.
 pub fn dart(schema: &Schema) -> Result<String, String> {
     let ns = schema.namespace();
     let ns_ty = type_name(ns);
-    let mut types = Scope::new("the library", IMPORTED);
+    let mut types = Scope::new("the library");
     types.claim(ns_ty.clone(), "the namespace")?;
 
-    let typed_data = if schema.assets().is_empty() {
-        ""
-    } else {
-        "import 'dart:typed_data';\n"
-    };
-    let mut out = header(schema) + "\n" + typed_data;
-    out += &format!("import 'package:{PACKAGE}/mxconfig.dart';\n");
+    // Every import has a `$` prefix, which a generated name has only before a digit.
+    let mut out = header(schema) + "\nimport 'dart:core' as $core;\n";
+    if !schema.assets().is_empty() {
+        out += "import 'dart:typed_data' as $typed_data;\n";
+    }
+    out += &format!("\nimport 'package:{PACKAGE}/mxconfig.dart' as $mx;\n");
     for key in schema.keys() {
         if let KeyType::Enum(values) = &key.ty {
             let ty = types.claim(path_type(key), &owner("key", &key.path))?;
@@ -69,24 +71,19 @@ pub fn dart(schema: &Schema) -> Result<String, String> {
         }
     }
 
-    let reserved = [
-        OBJECT,
-        &["changes", "namespace", "open", "schema", "settings"],
-    ]
-    .concat();
-    let mut members = Scope::new(format!("`{ns_ty}`"), &reserved);
+    let mut members = Scope::new(format!("`{ns_ty}`"));
     let mut body = String::new();
     let mut groups = String::new();
     for group in schema.groups() {
         let owner = owner("group", &group.id);
         let group_ty = types.claim(pascal(&group.id), &owner)?;
-        let name = members.claim(camel(&group.id), &owner)?;
+        let name = members.claim(camel(&group.id, NS_MEMBERS), &owner)?;
         let id = doc(&group.id);
         body += &format!("  {group_ty} get {name} => {group_ty}(settings);\n\n");
-        let mut scope = Scope::new(format!("`{group_ty}`"), &[OBJECT, &["settings"]].concat());
+        let mut scope = Scope::new(format!("`{group_ty}`"));
         let keys: String = schema
             .in_group(&group.id)
-            .map(|key| accessors(key, &mut scope))
+            .map(|key| accessors(key, &mut scope, GROUP_MEMBERS))
             .collect::<Result<_, _>>()?;
         let keys = keys.trim_end();
         groups += &format!(
@@ -95,7 +92,7 @@ pub fn dart(schema: &Schema) -> Result<String, String> {
 class {group_ty} {{
   {group_ty}(this.settings);
 
-  final Settings settings;
+  final $mx.Settings settings;
 
 {keys}
 }}
@@ -103,7 +100,7 @@ class {group_ty} {{
         );
     }
     for key in schema.in_group("") {
-        body += &accessors(key, &mut members)?;
+        body += &accessors(key, &mut members, NS_MEMBERS)?;
     }
     for asset in schema.assets() {
         body += &asset_accessors(asset, &mut members)?;
@@ -113,23 +110,23 @@ class {group_ty} {{
     out += &format!(
         r"
 /// The namespace this client reads and writes.
-const String namespace = {lit};
+const $core.String namespace = {lit};
 
 /// The schema text, which the client reads with.
-const String schema ={source};
+const $core.String schema ={source};
 
 /// A typed handle on `{ns}`.
 class {ns_ty} {{
   {ns_ty}(this.settings);
 
-  final Settings settings;
+  final $mx.Settings settings;
 
   /// Open the namespace with the schema it was generated from.
-  static Future<{ns_ty}> open() async =>
-      {ns_ty}(await Settings.open(namespace, schema: schema));
+  static $core.Future<{ns_ty}> open() async =>
+      {ns_ty}(await $mx.Settings.open(namespace, schema: schema));
 
   /// Every change as a typed [{ns_ty}Change].
-  Stream<{ns_ty}Change> changes() =>
+  $core.Stream<{ns_ty}Change> changes() =>
       settings.watchTyped({ns_ty}Change.from, {ns_ty}Change.fromAsset);
 
 {body}
@@ -142,9 +139,13 @@ class {ns_ty} {{
     Ok(out)
 }
 
-/// `name` as a member name.
-fn camel(name: &str) -> String {
-    ident(name.to_lower_camel_case(), KEYWORDS)
+/// `name` as a member name, with `_` added if it is a keyword, an `Object` member or in `taken`.
+fn camel(name: &str, taken: &[&str]) -> String {
+    ident(
+        name.to_lower_camel_case(),
+        &[KEYWORDS, OBJECT, taken].concat(),
+        LEAD,
+    )
 }
 
 /// `text` as a single-quoted Dart string literal.
@@ -182,11 +183,10 @@ fn lines(text: &str) -> String {
 
 /// The enum type for an enum key.
 fn enumeration(key: &KeySchema, ty: &str, values: &[String]) -> Result<String, String> {
-    let reserved = [OBJECT, &["index", "name", "parse", "value", "values"]].concat();
-    let mut constants = Scope::new(format!("`{ty}`"), &reserved);
+    let mut constants = Scope::new(format!("`{ty}`"));
     let mut list = Vec::new();
     for value in values {
-        let constant = constants.claim(camel(value), &owner("value", value))?;
+        let constant = constants.claim(camel(value, ENUM_MEMBERS), &owner("value", value))?;
         list.push(format!("  {constant}({})", string(value)));
     }
     Ok(format!(
@@ -198,10 +198,10 @@ enum {ty} {{
   const {ty}(this.value);
 
   /// The value as written in the schema.
-  final String value;
+  final $core.String value;
 
   /// The value spelled `text` in the schema, if any.
-  static {ty}? parse(String? text) =>
+  static {ty}? parse($core.String? text) =>
       values.where((value) => value.value == text).firstOrNull;
 }}
 ",
@@ -211,10 +211,10 @@ enum {ty} {{
 }
 
 /// A key's getter, and its setter and clearer unless it is managed.
-fn accessors(key: &KeySchema, scope: &mut Scope) -> Result<String, String> {
+fn accessors(key: &KeySchema, scope: &mut Scope, taken: &[&str]) -> Result<String, String> {
     let owner = owner("key", &key.path);
     let base = key.id.to_upper_camel_case();
-    let name = scope.claim(camel(&key.id), &owner)?;
+    let name = scope.claim(camel(&key.id, taken), &owner)?;
     let Kind {
         ty,
         read,
@@ -248,13 +248,13 @@ fn asset_accessors(asset: &AssetSchema, scope: &mut Scope) -> Result<String, Str
     let lit = string(&asset.id);
     let name = scope.claim(format!("asset{base}"), &owner)?;
     let mut out = format!(
-        "  /// The bytes of the file that wins, if any layer sets it.\n  Uint8List? {name}() => settings.asset({lit});\n\n"
+        "  /// The bytes of the file that wins, if any layer sets it.\n  $typed_data.Uint8List? {name}() => settings.asset({lit});\n\n"
     );
     if !asset.managed {
         let set = scope.claim(format!("setAsset{base}"), &owner)?;
         let remove = scope.claim(format!("removeAsset{base}"), &owner)?;
         out += &format!(
-            r"  void {set}(Uint8List bytes) => settings.setAsset({lit}, bytes);
+            r"  void {set}($typed_data.Uint8List bytes) => settings.setAsset({lit}, bytes);
 
   /// Remove the user's copy, so a lower layer applies again.
   void {remove}() => settings.removeAsset({lit});
@@ -282,8 +282,8 @@ fn changes(schema: &Schema, ns_ty: &str, types: &mut Scope) -> Result<String, St
 final class {class} extends {base}<{ty}> {{
   const {class}(super.value);
 
-  @override
-  String toString() => '{name} = $value';
+  @$core.override
+  $core.String toString() => '{name} = $value';
 }}
 ",
             path = doc(&key.path),
@@ -298,11 +298,11 @@ final class {class} extends {base}<{ty}> {{
         classes += &format!(
             r"
 /// The `{id}` asset's file changed.
-final class {class} extends {base}<Null> {{
+final class {class} extends {base}<$core.Null> {{
   const {class}() : super(null);
 
-  @override
-  String toString() => '{name} asset changed';
+  @$core.override
+  $core.String toString() => '{name} asset changed';
 }}
 "
         );
@@ -316,12 +316,12 @@ sealed class {base}<T> {{
   final T value;
 
   /// [change] as a typed change, if it is for one of these keys.
-  static {base}? from(Change change) => switch (change.key) {{
+  static {base}? from($mx.Change change) => switch (change.key) {{
 {keys}        _ => null,
       }};
 
   /// The typed change for asset [id], if it is one of these assets.
-  static {base}? fromAsset(String id) => switch (id) {{
+  static {base}? fromAsset($core.String id) => switch (id) {{
 {assets}        _ => null,
       }};
 }}
@@ -351,13 +351,13 @@ fn kind(key: &KeySchema) -> Result<Kind, String> {
     let is_enum = matches!(key.ty, KeyType::Enum(_));
     // Per type: Dart type, getter method, `Change` field and setter.
     let (ty, getter, field, setter) = match &key.ty {
-        KeyType::String => ("String", "getString", "stringValue", "setString"),
-        KeyType::Datetime => ("String", "getString", "stringValue", "setToml"),
-        KeyType::Integer => ("int", "getInt", "intValue", "setInt"),
-        KeyType::Float => ("double", "getDouble", "doubleValue", "setDouble"),
-        KeyType::Bool => ("bool", "getBool", "boolValue", "setBool"),
+        KeyType::String => ("$core.String", "getString", "stringValue", "setString"),
+        KeyType::Datetime => ("$core.String", "getString", "stringValue", "setToml"),
+        KeyType::Integer => ("$core.int", "getInt", "intValue", "setInt"),
+        KeyType::Float => ("$core.double", "getDouble", "doubleValue", "setDouble"),
+        KeyType::Bool => ("$core.bool", "getBool", "boolValue", "setBool"),
         KeyType::Enum(_) => (enum_ty.as_str(), "getString", "stringValue", "setString"),
-        KeyType::Array(_) | KeyType::Map(_) => ("String", "getToml", "value", "setToml"),
+        KeyType::Array(_) | KeyType::Map(_) => ("$core.String", "getToml", "value", "setToml"),
     };
     let fallback = fallback(key, &enum_ty)?;
     // Turns code that reads the raw value into code that reads `ty`.
@@ -390,7 +390,7 @@ fn kind(key: &KeySchema) -> Result<Kind, String> {
 fn fallback(key: &KeySchema, enum_ty: &str) -> Result<Option<String>, String> {
     Ok(default(key)?.and_then(|default| match default {
         Value::String(s) if matches!(key.ty, KeyType::Enum(_)) => {
-            Some(format!("{enum_ty}.{}", camel(s)))
+            Some(format!("{enum_ty}.{}", camel(s, ENUM_MEMBERS)))
         }
         Value::String(s) => Some(string(s)),
         Value::Datetime(d) => Some(string(&d.to_string())),
@@ -402,64 +402,19 @@ fn fallback(key: &KeySchema, enum_ty: &str) -> Result<Option<String>, String> {
 }
 
 /// Dart's names for NaN, infinity and negative infinity.
-const FLOATS: [&str; 3] = ["double.nan", "double.infinity", "double.negativeInfinity"];
+const FLOATS: [&str; 3] = [
+    "$core.double.nan",
+    "$core.double.infinity",
+    "$core.double.negativeInfinity",
+];
 
 #[cfg(test)]
 mod tests {
-    use super::{IMPORTED, PACKAGE};
+    use super::PACKAGE;
 
     #[test]
     fn the_package_name_matches_the_pubspec() {
         let pubspec = include_str!("../../../packages/mxconfig_dart/pubspec.yaml");
         assert!(pubspec.lines().any(|l| l == format!("name: {PACKAGE}")));
-    }
-
-    /// The package's library file.
-    const LIBRARY: &str = include_str!("../../../packages/mxconfig_dart/lib/mxconfig.dart");
-    /// The library's parts, by path under `lib`.
-    const PARTS: [(&str, &str); 1] = [(
-        "src/source.dart",
-        include_str!("../../../packages/mxconfig_dart/lib/src/source.dart"),
-    )];
-
-    /// The statements in `code` that start with `keyword`, each up to its end.
-    fn statements<'a>(code: &'a str, keyword: &'a str) -> impl Iterator<Item = &'a str> {
-        code.split(';')
-            .filter_map(move |s| s.trim().strip_prefix(keyword))
-    }
-
-    /// The public top-level types `code` declares.
-    fn declared(code: &str) -> Vec<&str> {
-        let kinds = ["class ", "enum ", "typedef ", "mixin "];
-        code.lines()
-            // Top-level declarations are not indented.
-            .filter(|line| !line.starts_with(char::is_whitespace) && !line.starts_with("//"))
-            .filter_map(|line| {
-                let found = kinds
-                    .iter()
-                    .filter_map(|kind| line.find(kind).map(|at| at + kind.len()));
-                let rest = &line[found.min()?..];
-                rest.split(|c: char| !c.is_alphanumeric() && c != '_')
-                    .next()
-            })
-            .filter(|name| !name.is_empty() && !name.starts_with('_'))
-            .collect()
-    }
-
-    #[test]
-    fn imported_names_every_public_type_of_the_package() {
-        let parts: Vec<&str> = statements(LIBRARY, "part ").collect();
-        let known: Vec<String> = PARTS.iter().map(|(path, _)| format!("'{path}'")).collect();
-        assert_eq!(parts, known, "PARTS must list the library's parts");
-
-        let shown = statements(LIBRARY, "export ")
-            .filter_map(|export| export.split_once(" show "))
-            .flat_map(|(_, names)| names.split(',').map(str::trim));
-        let codes = std::iter::once(LIBRARY).chain(PARTS.iter().map(|(_, code)| *code));
-        let names: Vec<&str> = shown.chain(codes.flat_map(declared)).collect();
-        assert!(names.contains(&"Settings"), "{names:?}");
-        for name in names {
-            assert!(IMPORTED.contains(&name), "IMPORTED lacks `{name}`");
-        }
     }
 }

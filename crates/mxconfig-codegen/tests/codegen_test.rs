@@ -135,19 +135,20 @@ fn the_rust_face_is_typed_and_complete() {
             "const NAMESPACE: &'static str = \"org.mechanix.demo\";",
             "const SCHEMA: &'static str = r#",
             "pub struct Demo {",
-            "impl mxconfig::FromSettings for Demo {",
-            "impl mxconfig::Namespace for Demo {",
+            "impl ::mxconfig::FromSettings for Demo {",
+            "impl ::mxconfig::Namespace for Demo {",
             // Changes carry the key's type.
             "pub enum DemoChange {",
-            "    ColorsAccent(String),",
+            "    ColorsAccent(::std::string::String),",
             "    ColorsMode(ColorsMode),",
-            "    Nickname(Option<String>),",
+            "    Nickname(::core::option::Option<::std::string::String>),",
             "\"colors.accent\" => DemoChange::ColorsAccent(",
             // Writes return nothing. Their results arrive as events.
             "pub fn clear_corner_radius(&self) {",
             // Groups have accessors with typed getters and setters.
             "pub fn colors(&self) -> Colors {",
-            "pub fn accent(&self) -> String {",
+            "pub fn accent(&self) -> ::std::string::String {",
+            "pub fn set_accent(&self, value: impl ::core::convert::Into<::std::string::String>)",
             "pub fn set_corner_radius(&self, value: i64)",
             "pub fn clear_corner_radius(&self)",
             "pub fn opacity(&self) -> f64 {",
@@ -156,20 +157,20 @@ fn the_rust_face_is_typed_and_complete() {
             "ColorsMode::Light => \"light\",",
             "#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]",
             "    #[default]\n    Dark,",
-            "mxconfig::Value::String(value.as_str().to_string())",
+            "::mxconfig::Value::String(value.as_str().to_string())",
             // A key without a default is optional. Arrays are `Vec<Value>`.
-            "pub fn nickname(&self) -> Option<String> {",
-            "pub fn recent(&self) -> Option<Vec<mxconfig::Value>> {",
+            "pub fn nickname(&self) -> ::core::option::Option<::std::string::String> {",
+            "pub fn recent(&self) -> ::core::option::Option<::std::vec::Vec<::mxconfig::Value>> {",
             "pub fn verbose(&self) -> bool {",
             // Enums parse and print their schema spelling.
             "pub fn as_str(self) -> &'static str {",
-            "pub fn parse(text: &str) -> Option<Self> {",
-            "\"dark\" => Some(ColorsMode::Dark),",
+            "pub fn parse(text: &str) -> ::core::option::Option<Self> {",
+            "\"dark\" => ::core::option::Option::Some(ColorsMode::Dark),",
         ],
     );
     // Schema and revision are on the untyped handle, reached from the client only.
     assert_eq!(
-        code.matches("pub fn settings(&self) -> &mxconfig::Settings")
+        code.matches("pub fn settings(&self) -> &::mxconfig::Settings")
             .count(),
         1,
         "{code}"
@@ -191,40 +192,48 @@ fn the_rust_face_is_typed_and_complete() {
 fn the_dart_face_is_typed_and_complete() {
     let code = mxconfig_codegen::dart(&schema()).unwrap();
     let (name, _) = runtime();
-    has(&code, &[&format!("import 'package:{name}/mxconfig.dart';")]);
+    // Every import has a `$` prefix, so no generated name can hide one.
     has(
         &code,
         &[
-            "const String namespace = 'org.mechanix.demo';",
+            "import 'dart:core' as $core;",
+            &format!("import 'package:{name}/mxconfig.dart' as $mx;"),
+        ],
+    );
+    has(
+        &code,
+        &[
+            "const $core.String namespace = 'org.mechanix.demo';",
             "class Demo {",
-            "static Future<Demo> open() async =>",
-            "Demo(await Settings.open(namespace, schema: schema));",
+            "static $core.Future<Demo> open() async =>",
+            "Demo(await $mx.Settings.open(namespace, schema: schema));",
             "    'namespace = \"org.mechanix.demo\"\\n'\n",
             "class Colors {",
+            "final $mx.Settings settings;",
             "Colors get colors => Colors(settings);",
-            "String get accent => settings.getString('colors.accent') ?? '#7aa2f7';",
-            "int get cornerRadius => settings.getInt('colors.corner_radius') ?? 8;",
+            "$core.String get accent => settings.getString('colors.accent') ?? '#7aa2f7';",
+            "$core.int get cornerRadius => settings.getInt('colors.corner_radius') ?? 8;",
             // Setters are typed and call the matching runtime method.
-            "void setAccent(String value) => settings.setString('colors.accent', value);",
+            "void setAccent($core.String value) => settings.setString('colors.accent', value);",
             "void clearAccent() => settings.clear('colors.accent');",
             "enum ColorsMode {",
             "light('light'),",
             "dark('dark');",
-            "static ColorsMode? parse(String? text)",
+            "static ColorsMode? parse($core.String? text)",
             "ColorsMode get mode => ColorsMode.parse(settings.getString('colors.mode')) ?? ColorsMode.dark;",
             "void setMode(ColorsMode value) => settings.setString('colors.mode', value.value);",
             // Changes are a sealed type with a typed class per key.
             "sealed class DemoChange<T> {",
             "  const DemoChange(this.value);\n\n  final T value;",
             "'colors.mode' => ColorsModeChange(ColorsMode.parse(change.stringValue) ?? ColorsMode.dark),",
-            "final class NicknameChange extends DemoChange<String?> {\n  const NicknameChange(super.value);\n\n  @override\n  String toString() => 'nickname = $value';\n}",
+            "final class NicknameChange extends DemoChange<$core.String?> {\n  const NicknameChange(super.value);\n\n  @$core.override\n  $core.String toString() => 'nickname = $value';\n}",
             "final class ColorsModeChange extends DemoChange<ColorsMode> {",
             "settings.watchTyped(DemoChange.from, DemoChange.fromAsset);",
             // No assets, so no asset change.
-            "static DemoChange? fromAsset(String id) => switch (id) {\n        _ => null,\n      };",
+            "static DemoChange? fromAsset($core.String id) => switch (id) {\n        _ => null,\n      };",
             // No default means a nullable getter. Arrays are read as TOML text.
-            "String? get nickname => settings.getString('nickname');",
-            "String? get recent => settings.getToml('recent');",
+            "$core.String? get nickname => settings.getString('nickname');",
+            "$core.String? get recent => settings.getToml('recent');",
         ],
     );
     // Schema and changes are reached through `settings` and `changes()`.
@@ -302,14 +311,14 @@ description = "Panel brightness."
     has(
         &rust,
         &[
-            "pub fn asset_layout(&self) -> Option<mxconfig::Asset>",
+            "pub fn asset_layout(&self) -> ::core::option::Option<::mxconfig::Asset>",
             "pub fn set_asset_layout",
-            "pub fn set_asset_layout_from(&self, file: std::os::fd::OwnedFd)",
+            "pub fn set_asset_layout_from(&self, file: ::std::os::fd::OwnedFd)",
             "pub fn remove_asset_layout",
             // Asset changes are typed too.
             "    AssetLayout,",
-            "fn asset_change(id: &str) -> Option<DemoChange> {",
-            "\"layout\" => Some(DemoChange::AssetLayout),",
+            "fn asset_change(id: &str) -> ::core::option::Option<DemoChange> {",
+            "\"layout\" => ::core::option::Option::Some(DemoChange::AssetLayout),",
         ],
     );
 
@@ -317,11 +326,11 @@ description = "Panel brightness."
     has(
         &dart,
         &[
-            "Uint8List? assetLayout()",
+            "$typed_data.Uint8List? assetLayout()",
             "void setAssetLayout",
-            "import 'dart:typed_data';",
+            "import 'dart:typed_data' as $typed_data;",
             "'layout' => const AssetLayoutChange(),",
-            "final class AssetLayoutChange extends DemoChange<Null> {\n  const AssetLayoutChange() : super(null);",
+            "final class AssetLayoutChange extends DemoChange<$core.Null> {\n  const AssetLayoutChange() : super(null);",
         ],
     );
 }
@@ -345,7 +354,7 @@ description = "d"
 "#,
     );
     let rust = mxconfig_codegen::rust(&schema).unwrap();
-    has(&rust, &[r#""say \"hi\"" => Some("#]);
+    has(&rust, &[r#""say \"hi\"" => ::core::option::Option::Some("#]);
     let dart = mxconfig_codegen::dart(&schema).unwrap();
     has(
         &dart,
@@ -357,12 +366,20 @@ description = "d"
 fn a_keyword_key_gets_a_usable_name() {
     let schema = keyed(
         "[keys.match]\ntype = \"bool\"\nlabel = \"M\"\ndescription = \"d\"\n\n\
-         [keys.default]\ntype = \"bool\"\nlabel = \"D\"\ndescription = \"d\"\n",
+         [keys.default]\ntype = \"bool\"\nlabel = \"D\"\ndescription = \"d\"\n\n\
+         [keys.self]\ntype = \"bool\"\nlabel = \"S\"\ndescription = \"d\"\n",
     );
     let rust = mxconfig_codegen::rust(&schema).unwrap();
-    has(&rust, &["pub fn match_(&self)", "pub fn set_match(&self"]);
+    has(
+        &rust,
+        &[
+            "pub fn match_(&self)",
+            "pub fn set_match(&self",
+            "pub fn self_(&self)",
+        ],
+    );
     let dart = mxconfig_codegen::dart(&schema).unwrap();
-    has(&dart, &["bool? get default_ =>"]);
+    has(&dart, &["$core.bool? get default_ =>"]);
 }
 
 #[test]
@@ -374,11 +391,99 @@ fn names_that_would_collide_are_refused() {
     let err = mxconfig_codegen::rust(&twins).unwrap_err();
     assert!(err.contains("corner_radius"), "{err}");
     assert!(mxconfig_codegen::dart(&twins).is_err());
+}
 
-    // A key can't use a name the generated API already uses.
-    let reserved = keyed("[keys.settings]\ntype = \"bool\"\nlabel = \"S\"\ndescription = \"d\"\n");
-    assert!(mxconfig_codegen::rust(&reserved).is_err());
-    assert!(mxconfig_codegen::dart(&reserved).is_err());
+#[test]
+fn a_name_the_generated_api_uses_gets_an_underscore() {
+    let schema = keyed(
+        "[keys.settings]\ntype = \"bool\"\nlabel = \"S\"\ndescription = \"d\"\n\n\
+         [keys.schema]\ntype = \"bool\"\nlabel = \"C\"\ndescription = \"d\"\n\n\
+         [keys.to_string]\ntype = \"bool\"\nlabel = \"T\"\ndescription = \"d\"\n",
+    );
+    let rust = mxconfig_codegen::rust(&schema).unwrap();
+    has(&rust, &["pub fn settings_(&self)", "pub fn schema(&self)"]);
+    let dart = mxconfig_codegen::dart(&schema).unwrap();
+    has(
+        &dart,
+        &[
+            "$core.bool? get settings_ =>",
+            "$core.bool? get schema_ =>",
+            "$core.bool? get toString_ =>",
+        ],
+    );
+}
+
+#[test]
+fn a_by_value_trait_method_gets_an_underscore() {
+    let schema = keyed(
+        "[keys.into]\ntype = \"bool\"\nlabel = \"I\"\ndescription = \"d\"\n\n\
+         [keys.try_into]\ntype = \"bool\"\nlabel = \"T\"\ndescription = \"d\"\n",
+    );
+    has(
+        &mxconfig_codegen::rust(&schema).unwrap(),
+        &[
+            "pub fn into_(&self)",
+            "pub fn set_into(&self",
+            "pub fn try_into_(&self)",
+        ],
+    );
+}
+
+#[test]
+fn a_name_starting_with_a_digit_stays_public() {
+    let schema = keyed(
+        "[keys.1x]\ntype = \"bool\"\nlabel = \"X\"\ndescription = \"d\"\n\n\
+         [keys.mode]\ntype = \"enum\"\nvalues = [\"2d\", \"3d\"]\ndefault = \"2d\"\n\
+         label = \"M\"\ndescription = \"d\"\n",
+    );
+    has(
+        &mxconfig_codegen::rust(&schema).unwrap(),
+        &["pub fn _1x(&self)", "    _2d,"],
+    );
+    // A leading `_` is private in Dart.
+    has(
+        &mxconfig_codegen::dart(&schema).unwrap(),
+        &[
+            "$core.bool? get $1x =>",
+            "  $2d('2d'),",
+            "final class $1xChange",
+        ],
+    );
+}
+
+#[test]
+fn names_from_the_libraries_are_free_to_use() {
+    let schema = Schema::parse(
+        "namespace = \"org.mechanix.app.settings\"\nversion = 1\n\n\
+         [groups.option]\nlabel = \"O\"\n\n\
+         [keys.option.string]\ntype = \"bool\"\nlabel = \"S\"\ndescription = \"d\"\n\n\
+         [keys.core]\ntype = \"bool\"\nlabel = \"C\"\ndescription = \"d\"\n",
+    )
+    .unwrap();
+    let rust = mxconfig_codegen::rust(&schema).unwrap();
+    has(&rust, &["pub struct Settings {", "pub struct Option {"]);
+    let dart = mxconfig_codegen::dart(&schema).unwrap();
+    has(
+        &dart,
+        &[
+            "class Settings {",
+            "class Option {",
+            "$core.bool? get core =>",
+        ],
+    );
+}
+
+#[test]
+fn a_function_type_gets_an_underscore() {
+    let schema = Schema::parse("namespace = \"org.mechanix.function\"\nversion = 1\n").unwrap();
+    has(
+        &mxconfig_codegen::rust(&schema).unwrap(),
+        &["pub struct Function_ {"],
+    );
+    has(
+        &mxconfig_codegen::dart(&schema).unwrap(),
+        &["class Function_ {"],
+    );
 }
 
 #[test]
@@ -388,8 +493,8 @@ fn a_datetime_key_is_typed_in_rust_and_text_in_dart() {
     has(
         &rust,
         &[
-            "pub fn seen(&self) -> Option<mxconfig::Datetime>",
-            "mxconfig::Value::Datetime(value)",
+            "pub fn seen(&self) -> ::core::option::Option<::mxconfig::Datetime>",
+            "::mxconfig::Value::Datetime(value)",
         ],
     );
     let dart = mxconfig_codegen::dart(&schema).unwrap();
@@ -399,7 +504,7 @@ fn a_datetime_key_is_typed_in_rust_and_text_in_dart() {
 /// The text of the Dart string constant `name`, read back from `code`.
 fn dart_const(code: &str, name: &str) -> String {
     let start = code
-        .find(&format!("const String {name} ="))
+        .find(&format!("const $core.String {name} ="))
         .expect("declared");
     let mut chars = code[start..].chars();
     let mut out = String::new();
@@ -441,12 +546,6 @@ description = "say \"hi\" for $5 in C:\\tmp"
         ],
     );
     assert_eq!(dart_const(&dart, "schema"), schema.source());
-}
-
-#[test]
-fn a_key_named_like_the_schema_constant_is_refused() {
-    let schema = keyed("[keys.schema]\ntype = \"bool\"\nlabel = \"S\"\ndescription = \"d\"\n");
-    assert!(mxconfig_codegen::dart(&schema).is_err());
 }
 
 /// A schema with managed and unmanaged keys and assets, in and out of a group.
@@ -507,7 +606,7 @@ fn managed_keys_keep_only_their_getter_in_rust() {
         &[
             "pub fn brightness(&self) -> i64 {",
             "pub fn mode(&self) -> DisplayMode {",
-            "pub fn lock(&self) -> Option<String> {",
+            "pub fn lock(&self) -> ::core::option::Option<::std::string::String> {",
             // Unmanaged keys beside them keep every writer.
             "pub fn set_contrast(&self, value: i64)",
             "pub fn clear_contrast(&self)",
@@ -537,12 +636,12 @@ fn managed_keys_keep_only_their_getter_in_dart() {
     has(
         &dart,
         &[
-            "int get brightness => settings.getInt('display.brightness') ?? 50;",
+            "$core.int get brightness => settings.getInt('display.brightness') ?? 50;",
             "DisplayMode get mode =>",
-            "String? get lock => settings.getString('lock');",
-            "void setContrast(int value)",
+            "$core.String? get lock => settings.getString('lock');",
+            "void setContrast($core.int value)",
             "void clearContrast()",
-            "void setVolume(int value)",
+            "void setVolume($core.int value)",
         ],
     );
     lacks(
@@ -569,7 +668,7 @@ fn a_managed_key_still_has_a_typed_change() {
         &rust,
         &[
             "    DisplayBrightness(i64),",
-            "    Lock(Option<String>),",
+            "    Lock(::core::option::Option<::std::string::String>),",
             "\"display.brightness\" => DemoChange::DisplayBrightness(",
         ],
     );
@@ -577,7 +676,7 @@ fn a_managed_key_still_has_a_typed_change() {
     has(
         &dart,
         &[
-            "final class DisplayBrightnessChange extends DemoChange<int> {",
+            "final class DisplayBrightnessChange extends DemoChange<$core.int> {",
             "'display.brightness' => DisplayBrightnessChange(",
         ],
     );
@@ -591,10 +690,10 @@ fn a_managed_asset_keeps_only_its_getter() {
     has(
         &rust,
         &[
-            "pub fn asset_layout(&self) -> Option<mxconfig::Asset>",
-            "\"layout\" => Some(DemoChange::AssetLayout),",
+            "pub fn asset_layout(&self) -> ::core::option::Option<::mxconfig::Asset>",
+            "\"layout\" => ::core::option::Option::Some(DemoChange::AssetLayout),",
             "pub fn set_asset_theme(&self, bytes: &[u8])",
-            "pub fn set_asset_theme_from(&self, file: std::os::fd::OwnedFd)",
+            "pub fn set_asset_theme_from(&self, file: ::std::os::fd::OwnedFd)",
             "pub fn remove_asset_theme(&self)",
         ],
     );
@@ -614,9 +713,9 @@ fn a_managed_asset_keeps_only_its_getter() {
     has(
         &dart,
         &[
-            "Uint8List? assetLayout() => settings.asset('layout');",
-            "import 'dart:typed_data';",
-            "void setAssetTheme(Uint8List bytes)",
+            "$typed_data.Uint8List? assetLayout() => settings.asset('layout');",
+            "import 'dart:typed_data' as $typed_data;",
+            "void setAssetTheme($typed_data.Uint8List bytes)",
             "void removeAssetTheme()",
         ],
     );
@@ -638,9 +737,12 @@ fn a_managed_key_does_not_claim_writer_names() {
                 [keys.set_brightness]\ntype = \"integer\"\nlabel = \"S\"\ndescription = \"d\"\n";
     let managed = keyed(&keys.replace("{managed}", "managed = true"));
     let rust = mxconfig_codegen::rust(&managed).unwrap();
-    has(&rust, &["pub fn set_brightness(&self) -> Option<i64> {"]);
+    has(
+        &rust,
+        &["pub fn set_brightness(&self) -> ::core::option::Option<i64> {"],
+    );
     let dart = mxconfig_codegen::dart(&managed).unwrap();
-    has(&dart, &["int? get setBrightness =>"]);
+    has(&dart, &["$core.int? get setBrightness =>"]);
 
     // Unmanaged, the setter would clash with the other key's getter.
     let unmanaged = keyed(&keys.replace("{managed}", ""));

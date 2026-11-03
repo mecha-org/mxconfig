@@ -18,34 +18,34 @@ pub fn all(schema: &Schema) -> Result<Vec<(String, String)>, String> {
 
 /// Generate the Rust client, as a `(file_name, contents)` pair.
 pub fn rust_file(schema: &Schema) -> Result<(String, String), String> {
-    let stem = type_name(schema.namespace());
+    let stem = rust::type_name(schema.namespace());
     Ok((format!("{stem}.rs"), rust(schema)?))
 }
 
 /// Generate the Dart client, as a `(file_name, contents)` pair.
 pub fn dart_file(schema: &Schema) -> Result<(String, String), String> {
-    let stem = type_name(schema.namespace()).to_snake_case();
+    let stem = dart::type_name(schema.namespace()).to_snake_case();
     Ok((format!("{stem}.dart"), dart(schema)?))
 }
 
 /// The namespace's last label in `PascalCase`: `org.mechanix.demo` -> `Demo`.
-pub(crate) fn type_name(namespace: &str) -> String {
-    pascal(namespace.rsplit('.').next().unwrap_or(namespace))
+pub(crate) fn type_name(namespace: &str, lead: &str) -> String {
+    pascal(namespace.rsplit('.').next().unwrap_or(namespace), lead)
 }
 
-/// `name` as a type name. `Self` is the only keyword in `PascalCase`.
-pub(crate) fn pascal(name: &str) -> String {
-    ident(name.to_upper_camel_case(), &["Self"])
+/// `name` as a type name. Neither language can name a type `Function` or `Self`.
+pub(crate) fn pascal(name: &str, lead: &str) -> String {
+    ident(name.to_upper_camel_case(), &["Function", "Self"], lead)
 }
 
 /// The type name for a key's path: `colors.mode` -> `ColorsMode`.
-pub(crate) fn path_type(key: &KeySchema) -> String {
-    pascal(&format!("{} {}", key.group, key.id))
+pub(crate) fn path_type(key: &KeySchema, lead: &str) -> String {
+    pascal(&format!("{} {}", key.group, key.id), lead)
 }
 
 /// The type name for an asset: `layout` -> `AssetLayout`.
-pub(crate) fn asset_type(asset: &AssetSchema) -> String {
-    pascal(&format!("asset {}", asset.id))
+pub(crate) fn asset_type(asset: &AssetSchema, lead: &str) -> String {
+    pascal(&format!("asset {}", asset.id), lead)
 }
 
 /// `f` as a literal, or one of the `[nan, infinity, negative]` names.
@@ -59,14 +59,14 @@ pub(crate) fn float(f: f64, [nan, infinity, negative]: [&str; 3]) -> String {
     }
 }
 
-/// `name` as a valid identifier that is not a keyword.
-pub(crate) fn ident(name: String, keywords: &[&str]) -> String {
+/// `name` as a valid identifier, with `lead` before a digit and `_` added if it is `taken`.
+pub(crate) fn ident(name: String, taken: &[&str], lead: &str) -> String {
     let name = match name.chars().next() {
-        None => "_".to_string(),
-        Some(c) if c.is_ascii_digit() => format!("_{name}"),
+        None => lead.to_string(),
+        Some(c) if c.is_ascii_digit() => format!("{lead}{name}"),
         Some(_) => name,
     };
-    if keywords.contains(&name.as_str()) {
+    if taken.contains(&name.as_str()) {
         format!("{name}_")
     } else {
         name
@@ -119,14 +119,11 @@ pub(crate) struct Scope {
 }
 
 impl Scope {
-    /// A scope named `what`, with the `reserved` names already taken.
-    pub(crate) fn new(what: impl Into<String>, reserved: &[&str]) -> Scope {
-        let taken = reserved
-            .iter()
-            .map(|name| (name.to_string(), "the generated API".into()));
+    /// An empty scope named `what`.
+    pub(crate) fn new(what: impl Into<String>) -> Scope {
         Scope {
             what: what.into(),
-            taken: taken.collect(),
+            taken: BTreeMap::new(),
         }
     }
 

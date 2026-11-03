@@ -197,6 +197,30 @@ mod trimmed {
     mxconfig::client!("schema/org.mechanix.demo.toml", keys = ["colors.accent"]);
 }
 
+/// A client whose names hide standard ones.
+mod clashing {
+    // Hides `Some` and `None` with the `vec` enum's values.
+    #[allow(unused_imports, reason = "it only needs to hide the prelude")]
+    use self::Vec::*;
+
+    mxconfig::client!("tests/schemas/org.mechanix.app.settings.toml");
+}
+
+#[test]
+fn a_client_named_like_standard_types_works() {
+    let dir = TempDir::new().unwrap();
+    let settings: clashing::Settings = request(&in_dir(&dir)).unwrap();
+    assert_eq!(settings.into_().string(), "text");
+    assert!(settings.option().core());
+    assert!(matches!(settings.vec(), clashing::Vec::None));
+    assert_eq!(settings.type_(), None);
+    assert_eq!(settings.self_(), None);
+    assert_eq!(settings.settings_(), None);
+    assert_eq!(settings.try_into_(), None);
+    assert_eq!(settings._1x(), None);
+    assert_eq!(settings.settings().state(), State::Live);
+}
+
 #[test]
 fn a_trimmed_client_carries_only_its_keys() {
     use mxconfig::Namespace;
