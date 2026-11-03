@@ -1,0 +1,53 @@
+# Names that hide the standard and generated ones, for the codegen test.
+namespace = "org.mechanix.app.settings"
+version = 1
+
+[groups.into]
+label = "Into"
+
+[groups.option]
+label = "Option"
+
+[keys.into.string]
+type = "string"
+default = "text"
+label = "String"
+description = "A string in a group named like a trait."
+
+[keys.option.core]
+type = "bool"
+default = true
+label = "Core"
+description = "A key named like the core prefix."
+
+[keys.vec]
+type = "enum"
+values = ["some", "none"]
+default = "none"
+label = "Vec"
+description = "An enum named like a standard type."
+
+[keys.type]
+type = "integer"
+label = "Type"
+description = "A keyword."
+
+[keys.self]
+type = "bool"
+label = "Self"
+description = "A keyword that can't be raw."
+
+[keys.settings]
+type = "bool"
+label = "Settings"
+description = "A name the generated API uses."
+
+[keys.try_into]
+type = "bool"
+label = "TryInto"
+description = "A trait method that takes self by value."
+
+[keys.1x]
+type = "bool"
+label = "1x"
+description = "A name that starts with a digit."

@@ -78,6 +78,7 @@ For `org.mechanix.demo`:
 - **`ColorsMode`**, a real enum with `as_str()` and `parse()`.
 - **Return types:** keys with a default return `T`. Keys without one return `Option<T>`, or `T?` in Dart. Arrays return `Vec<mxconfig::Value>`, and maps `mxconfig::Table`.
 - **Per asset:** `asset_<id>()`, plus `set_asset_<id>()`, `set_asset_<id>_from()` and `remove_asset_<id>()` unless it's managed.
+- **Names:** names from the standard libraries are free to use, such as `org.mechanix.settings` or a group called `option`. A keyword, or a name the language or the generated API already uses, gets a `_`, as in `type_()`, `into_()`, `settings_()` or `Function_`. A name that starts with a digit gets `_` in Rust and `$` in Dart, as in `_1x()` and `$1x`. Codegen fails when two generated names would be the same, such as the `Demo` handle and a group called `demo`.
 
 In Dart:
 

@@ -17,7 +17,7 @@ How namespaces are served, how schema versions are kept apart, and the command-l
 | desktop | `mxconfigd` | schema defaults |
 | privileged | the privileged service | schema defaults |
 
-- **An app's own namespace** is read from its files, in the app's process. `mxconfigd` serves it only when the files can't be read or written.
+- **An app's own namespace** is read from its files, in the app's process. `mxconfigd` serves it only when the files can't be opened.
 - **A shared namespace** is only ever reached through its daemon. Apps never open shared files.
 - **A daemon is only tried** once the runtime reaches its bus.
 - **Falling back** to the other backend adds a warning to the handle's diagnostics. When both fail, the error gives both reasons.
