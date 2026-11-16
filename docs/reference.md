@@ -118,6 +118,8 @@ Every write failure arrives as `WriteFailed`, a bad value included. `current` ho
 
 A failure names the keys it touched, not the call. Two writes in flight to one key can't be told apart, and don't need to be: `current` is the key's value either way, and a write that lands later arrives as `Changed`.
 
+Write as often as a control changes, such as on every step of a slider drag. Through the daemon, writes made while one is in flight wait for its answer and then go out together, the latest value of each key winning.
+
 Under it, `source.outcomes()` returns every namespace's outcomes as plain `Outcome`s. Runtime integrations use them directly.
 
 A handle detaches for one of two reasons:

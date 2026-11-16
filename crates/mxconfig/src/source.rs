@@ -284,6 +284,8 @@ struct Inner {
     owners: BTreeMap<Bus, Option<String>>,
     /// Requests in flight, with the bus each went to.
     pending: BTreeMap<u64, (Bus, Pending)>,
+    /// Edits waiting for the write in flight to their namespace.
+    queued: BTreeMap<String, Vec<Edit>>,
     outcomes: Vec<Outcome>,
     /// The schemas clients carry, which they read with.
     embedded: BTreeMap<String, String>,
@@ -587,13 +589,16 @@ impl Source {
             // The daemon sent `AssetChanged` before this reply.
             Pending::WriteAsset { write, .. } => inner.written(write, result.map(|_| ())),
             Pending::Apply(write) => {
-                let state = match result.and_then(wire::applied) {
-                    Ok(state) => state,
-                    Err(e) => return inner.written(write, Err(e)),
-                };
-                // Newer than held only if a `Changed` was missed.
-                inner.take(bus, &write.namespace, state);
-                inner.written(write, Ok(()));
+                let namespace = write.namespace.clone();
+                match result.and_then(wire::applied) {
+                    Ok(state) => {
+                        // Newer than held only if a `Changed` was missed.
+                        inner.take(bus, &namespace, state);
+                        inner.written(write, Ok(()));
+                    }
+                    Err(e) => inner.written(write, Err(e)),
+                }
+                inner.write_queued(&namespace);
             }
         }
     }
@@ -858,6 +863,56 @@ impl Inner {
     fn send(&mut self, bus: Bus, call: Call, pending: Pending) {
         self.pending.insert(call.id, (bus, pending));
         self.outbox.push((bus, call));
+    }
+
+    /// Where `edits` go if they may be written: a bus, or `None` for files.
+    fn plan(&self, namespace: &str, edits: &[Edit]) -> Result<Option<Bus>, Error> {
+        let space = self.spaces.get(namespace).expect(OPEN);
+        space.validate(edits)?;
+        space.route(edits)
+    }
+
+    /// Write `edits` to `namespace`, or queue them behind its write in flight.
+    fn write(&mut self, namespace: &str, edits: &[Edit]) {
+        let write = Writing::edits(namespace, edits);
+        match self.plan(namespace, edits) {
+            Ok(None) => {
+                let space = self.spaces.get_mut(namespace).expect(OPEN);
+                let result = space.apply(edits);
+                let result = result.map(|changes| self.report(namespace, changes, Vec::new()));
+                self.written(write, result);
+            }
+            // The latest edit of each key wins.
+            Ok(Some(_)) if self.applying(namespace) => {
+                let queued = self.queued.entry(namespace.to_string()).or_default();
+                queued.retain(|old| edits.iter().all(|new| new.key() != old.key()));
+                queued.extend_from_slice(edits);
+            }
+            Ok(Some(bus)) => {
+                let app = self.app_for(namespace);
+                let call = Call::apply(self.id(), &app, namespace, edits);
+                self.send_write(bus, call, Pending::Apply(write));
+            }
+            Err(e) => self.written(write, Err(e)),
+        }
+    }
+
+    /// Whether a write to `namespace` awaits its reply.
+    fn applying(&self, namespace: &str) -> bool {
+        let to =
+            |pending: &Pending| matches!(pending, Pending::Apply(w) if w.namespace == namespace);
+        self.pending.values().any(|(_, pending)| to(pending))
+    }
+
+    /// Write the edits queued behind `namespace`'s answered write.
+    fn write_queued(&mut self, namespace: &str) {
+        let Some(edits) = self.queued.remove(namespace) else {
+            return;
+        };
+        // A closed namespace has no one to tell.
+        if self.spaces.contains_key(namespace) {
+            self.write(namespace, &edits);
+        }
     }
 
     /// Send a write as `call` on `bus`, or fail it if the bus isn't reached.
@@ -1210,36 +1265,15 @@ impl Settings {
     /// Check `edits` as [`Settings::write`] would, without writing anything.
     #[doc(hidden)]
     pub fn check(&self, edits: &[Edit]) -> Result<(), Error> {
-        self.plan(&self.source().lock(), edits).map(|_| ())
-    }
-
-    /// Where `edits` go if they may be written: a bus, or `None` for files.
-    fn plan(&self, inner: &Inner, edits: &[Edit]) -> Result<Option<Bus>, Error> {
-        let space = inner.spaces.get(self.namespace()).expect(OPEN);
-        space.validate(edits)?;
-        space.route(edits)
+        self.source()
+            .lock()
+            .plan(self.namespace(), edits)
+            .map(|_| ())
     }
 
     /// Write `edits` as one batch. The result arrives as [`Event::Changed`] or [`Event::WriteFailed`].
     pub fn write(&self, edits: &[Edit]) {
-        let mut guard = self.source().lock();
-        let inner = &mut *guard;
-        let namespace = self.namespace();
-        let write = Writing::edits(namespace, edits);
-        match self.plan(inner, edits) {
-            Ok(None) => {
-                let space = inner.spaces.get_mut(namespace).expect(OPEN);
-                let result = space.apply(edits);
-                let result = result.map(|changes| inner.report(namespace, changes, Vec::new()));
-                inner.written(write, result);
-            }
-            Ok(Some(bus)) => {
-                let app = inner.app_for(namespace);
-                let call = Call::apply(inner.id(), &app, namespace, edits);
-                inner.send_write(bus, call, Pending::Apply(write));
-            }
-            Err(e) => inner.written(write, Err(e)),
-        }
+        self.source().lock().write(self.namespace(), edits);
     }
 
     /// Write `bytes` as the user's copy of asset `id`.

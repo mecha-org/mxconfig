@@ -510,6 +510,54 @@ fn a_daemon_write_lands_only_once_answered() {
     );
 }
 
+/// Writes made while one is in flight go out together once it is answered, the latest of each key winning.
+#[test]
+fn daemon_writes_wait_for_the_one_in_flight_and_merge() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (source, _) = source(tmp.path(), &remote(SCHEMA));
+    let (mut daemon, mut revision) = (BTreeMap::new(), 0);
+    let settings = serve_open(&source, &mut daemon, &mut revision);
+    let radius = |n: i64| ("colors.corner_radius".to_string(), Some(Value::Integer(n)));
+
+    settings.write(&[Edit::set("colors.corner_radius", 1)]);
+    settings.write(&[Edit::set("colors.corner_radius", 2)]);
+    settings.write(&[Edit::set("verbose", true)]);
+    settings.write(&[Edit::set("colors.corner_radius", 3)]);
+    let sent = serve(&source, &mut daemon, &mut revision);
+    assert_eq!(members(&sent), ["Apply"]);
+    assert_eq!(edits(&sent[0]), [radius(1)]);
+
+    let sent = serve(&source, &mut daemon, &mut revision);
+    assert_eq!(members(&sent), ["Apply"]);
+    let verbose = ("verbose".to_string(), Some(Value::Boolean(true)));
+    assert_eq!(edits(&sent[0]), [verbose, radius(3)]);
+    assert!(write_error(&source.outcomes()).is_none());
+    assert_eq!(
+        settings.get("colors.corner_radius"),
+        Some(Value::Integer(3))
+    );
+
+    // With nothing in flight, a write goes out at once.
+    settings.write(&[Edit::set("colors.corner_radius", 4)]);
+    assert_eq!(members(&source.take_calls(Bus::Session)), ["Apply"]);
+}
+
+/// A refused write still lets the ones queued behind it go out.
+#[test]
+fn a_refused_daemon_write_sends_the_queued_ones() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (source, _) = source(tmp.path(), &remote(SCHEMA));
+    let settings = open_with_daemon(&source);
+    settings.write(&[Edit::set("colors.corner_radius", 20)]);
+    settings.write(&[Edit::set("verbose", true)]);
+    let id = source.take_calls(Bus::Session)[0].id;
+    source.deliver(Bus::Session, failed(id, ACCESS_DENIED));
+    assert!(write_error(&source.outcomes()).is_some());
+    let sent = source.take_calls(Bus::Session);
+    let verbose = ("verbose".to_string(), Some(Value::Boolean(true)));
+    assert_eq!(edits(&sent[0]), [verbose]);
+}
+
 /// A refusal is an error and changes nothing.
 #[test]
 fn a_refused_daemon_write_changes_nothing() {
@@ -726,11 +774,8 @@ fn closing_the_bus_detaches_and_ends_the_subscriptions() {
             _ => None,
         })
         .collect();
-    // The sent write may have landed. The unsent one never left.
-    assert_eq!(
-        kinds,
-        [ErrorKind::Unconfirmed, ErrorKind::Unreachable(Bus::Session)]
-    );
+    // The sent write may have landed. The queued one never left, and its handle detached.
+    assert_eq!(kinds, [ErrorKind::Unconfirmed, ErrorKind::Detached]);
     assert!(
         outcomes
             .iter()
