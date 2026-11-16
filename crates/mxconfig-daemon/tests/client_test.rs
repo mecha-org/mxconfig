@@ -229,7 +229,7 @@ async fn an_asset_write_refuses_pipes_and_huge_files() {
     let call = |fd: std::os::fd::OwnedFd| {
         let conn = conn.clone();
         async move {
-            let fd = zbus::zvariant::OwnedFd::from(fd);
+            let fd = zbus::OwnedFd::from(fd);
             conn.call_method(
                 Some(common::BUS_NAME),
                 common::OBJECT_PATH,

@@ -18,7 +18,7 @@ use mxconfig::host::protocol::WRITE_ACTION;
 use mxconfig::runtime::Drive;
 use mxconfig::{Edit, ErrorKind, Outcome, Source, Value};
 use mxconfig_daemon::Service;
-use zbus::zvariant::Value as ZValue;
+use zbus::Variant as ZValue;
 
 /// A second privileged namespace.
 const POWER: &str = "org.example.privileged.power";
@@ -92,9 +92,7 @@ async fn polkit(bus: &Bus) -> Authority {
     let allow = Arc::new(AtomicBool::new(true));
     let checks = Arc::new(Mutex::new(Vec::new()));
     let conn = zbus::connection::Builder::address(bus.address.as_str())
-        .unwrap()
         .name("org.freedesktop.PolicyKit1")
-        .unwrap()
         .serve_at(
             "/org/freedesktop/PolicyKit1/Authority",
             Polkit {
@@ -102,7 +100,6 @@ async fn polkit(bus: &Bus) -> Authority {
                 checks: Arc::clone(&checks),
             },
         )
-        .unwrap()
         .build()
         .await
         .unwrap();

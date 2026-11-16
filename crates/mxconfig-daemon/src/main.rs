@@ -21,9 +21,9 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     let (builder, bus) = if cli.privileged {
-        (Builder::system()?, Bus::System)
+        (Builder::system(), Bus::System)
     } else {
-        (Builder::session()?, Bus::Session)
+        (Builder::session(), Bus::Session)
     };
     let service = Service::new(builder.build().await?, Roots::find(), bus);
     service.publish().await.context("publishing the service")?;
