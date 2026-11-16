@@ -14,7 +14,7 @@ use mxconfig::host::Roots;
 pub use mxconfig::host::protocol::{BUS_NAME, INTERFACE, OBJECT_PATH};
 use mxconfig::{Error, FromSettings, Outcome, Settings, Source, Table, Ticket};
 use mxconfig_daemon::Service;
-use zbus::zvariant::{OwnedValue, Value as ZValue};
+use zbus::{OwnedVariant as OwnedValue, Variant as ZValue};
 
 mod zbus_link;
 
@@ -34,11 +34,11 @@ pub type Applied = (u64, BTreeMap<String, OwnedValue>);
 
 /// `Subscribe`'s reply: the subscription, schema, revision, values and assets.
 pub type Subscribed = (
-    zbus::zvariant::OwnedFd,
+    zbus::OwnedFd,
     String,
     u64,
     BTreeMap<String, OwnedValue>,
-    Vec<(String, String, zbus::zvariant::OwnedFd)>,
+    Vec<(String, String, zbus::OwnedFd)>,
 );
 
 /// A `Changed` signal's body: namespace, revision and every set value.
@@ -216,9 +216,9 @@ pub fn manifest(roots: &Roots, client: &str, namespace: &str, access: &str) {
 
 /// A connection to `bus`, owning `name` if given.
 pub async fn connect(bus: &Bus, name: Option<&str>) -> zbus::Connection {
-    let mut builder = zbus::connection::Builder::address(bus.address.as_str()).unwrap();
+    let mut builder = zbus::connection::Builder::address(bus.address.as_str());
     if let Some(name) = name {
-        builder = builder.name(name).unwrap();
+        builder = builder.name(name);
     }
     builder.build().await.unwrap()
 }
@@ -387,7 +387,7 @@ pub async fn write_asset(
     let upload = dir.join("upload");
     fs::write(&upload, bytes).unwrap();
     let file = fs::File::open(&upload).unwrap();
-    let fd = zbus::zvariant::OwnedFd::from(std::os::fd::OwnedFd::from(file));
+    let fd = zbus::OwnedFd::from(std::os::fd::OwnedFd::from(file));
     within(proxy.call("WriteAsset", &(fd, namespace, id, TOOL))).await
 }
 
@@ -400,6 +400,8 @@ pub async fn remove_asset(proxy: &zbus::Proxy<'_>, namespace: &str, id: &str) ->
 pub fn error_name<T: std::fmt::Debug>(result: zbus::Result<T>) -> String {
     match result {
         Err(zbus::Error::MethodError(name, _, _)) => name.to_string(),
+        // zbus reads the standard errors, such as `AccessDenied`, as `FDO`.
+        Err(zbus::Error::FDO(e)) => zbus::DBusError::name(&*e).to_string(),
         other => panic!("expected a D-Bus error, got {other:?}"),
     }
 }

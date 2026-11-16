@@ -17,7 +17,7 @@ use zbus::fdo;
 use zbus::message::Header;
 use zbus::names::{BusName, ErrorName, OwnedBusName};
 use zbus::object_server::SignalEmitter;
-use zbus::zvariant::{ObjectPath, OwnedFd as ZFd, Value as ZValue};
+use zbus::{ObjectPath, OwnedFd as ZFd, Variant as ZValue};
 
 use crate::policy::{self, Caller, grants};
 
@@ -70,7 +70,7 @@ struct Refusal(Failure, String);
 
 impl zbus::DBusError for Refusal {
     fn create_reply(&self, call: &Header<'_>) -> zbus::Result<zbus::Message> {
-        zbus::Message::error(call, self.name())?.build(&(self.1.as_str(),))
+        zbus::Message::error(call, self.name()).build(&(self.1.as_str(),))
     }
 
     fn name(&self) -> ErrorName<'_> {

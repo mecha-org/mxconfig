@@ -14,8 +14,7 @@ use mxconfig::runtime::wire::{Arg, Call, RULES, Rule};
 use mxconfig::{Bus, Source};
 use tokio::time::Instant;
 use zbus::message::{Flags, Type};
-use zbus::zvariant::{Array, Fd, Signature, Structure, StructureBuilder, Value};
-use zbus::{Message, MessageStream};
+use zbus::{Array, Fd, Message, MessageStream, Signature, Structure, Variant};
 
 /// How long a call may wait for its reply, as libdbus allows.
 const TIMEOUT: Duration = Duration::from_secs(25);
@@ -129,11 +128,11 @@ impl ZbusLink {
 
     /// Send `call`. Returns the message, for its serial.
     async fn send(&self, call: &Call) -> zbus::Result<Message> {
-        let mut builder = Message::method_call(call.path, call.member)?
-            .destination(call.destination)?
-            .interface(call.interface)?;
+        let mut builder = Message::method_call(call.path, call.member)
+            .destination(call.destination)
+            .interface(call.interface);
         if call.interactive {
-            builder = builder.with_flags(Flags::AllowInteractiveAuth)?;
+            builder = builder.with_flags(Flags::ALLOW_INTERACTIVE_AUTH);
         }
         let message = builder.build(&structure(&call.args)?)?;
         self.conn.send(&message).await?;
@@ -193,20 +192,22 @@ fn args(message: &Message) -> Vec<Arg> {
         .map_or_default(|body| body.fields().iter().map(arg).collect())
 }
 
-/// Arguments as a zvariant structure.
-fn structure(args: &[Arg]) -> zbus::zvariant::Result<Structure<'_>> {
+/// Arguments as a zbus structure.
+fn structure(args: &[Arg]) -> zbus::Result<Structure<'_>> {
     args.iter()
         .map(value)
-        .fold(StructureBuilder::new(), StructureBuilder::append_field)
+        .fold(Structure::builder(), |builder, field| {
+            builder.append_field(field)
+        })
         .build()
 }
 
-/// `arg` as a zvariant value, for the kinds our calls send.
-fn value(arg: &Arg) -> Value<'_> {
+/// `arg` as a zbus variant, for the kinds our calls send.
+fn value(arg: &Arg) -> Variant<'_> {
     match arg {
-        Arg::Str(text) => Value::from(text.as_str()),
-        Arg::Bool(b) => Value::Bool(*b),
-        Arg::Fd(fd) => Value::Fd(Fd::from(&**fd)),
+        Arg::Str(text) => Variant::from(text.as_str()),
+        Arg::Bool(b) => Variant::Bool(*b),
+        Arg::Fd(fd) => Variant::Fd(Fd::from(&**fd)),
         Arg::Array(signature, items) => {
             let signature = Signature::try_from(signature.as_str()).expect("a valid signature");
             let mut array = Array::new(&signature);
@@ -215,32 +216,32 @@ fn value(arg: &Arg) -> Value<'_> {
                     .append(value(item))
                     .expect("items match the signature");
             }
-            Value::Array(array)
+            Variant::Array(array)
         }
-        Arg::Struct(fields) => Value::Structure(structure(fields).expect("a struct has fields")),
+        Arg::Struct(fields) => Variant::Structure(structure(fields).expect("a struct has fields")),
         Arg::U64(_) | Arg::Variant(_) | Arg::Dict(_) | Arg::Kept(_) | Arg::Unreadable => {
             unreachable!("mxconfig sends none of these")
         }
     }
 }
 
-/// A received zvariant value as an [`Arg`]. Other kinds are unreadable.
-fn arg(value: &Value<'_>) -> Arg {
+/// A received zbus variant as an [`Arg`]. Other kinds are unreadable.
+fn arg(value: &Variant<'_>) -> Arg {
     match value {
-        Value::Str(text) => Arg::Str(text.to_string()),
-        Value::U64(n) => Arg::U64(*n),
-        Value::Bool(b) => Arg::Bool(*b),
-        Value::Fd(fd) => fd
+        Variant::Str(text) => Arg::Str(text.to_string()),
+        Variant::U64(n) => Arg::U64(*n),
+        Variant::Bool(b) => Arg::Bool(*b),
+        Variant::Fd(fd) => fd
             .as_fd()
             .try_clone_to_owned()
             .map_or(Arg::Unreadable, |fd| Arg::Fd(Arc::new(fd))),
-        Value::Array(array) => {
+        Variant::Array(array) => {
             let signature = array.element_signature().to_string();
             Arg::Array(signature, array.inner().iter().map(arg).collect())
         }
-        Value::Structure(fields) => Arg::Struct(fields.fields().iter().map(arg).collect()),
-        Value::Dict(dict) => Arg::Dict(dict.iter().map(|(k, v)| (arg(k), arg(v))).collect()),
-        Value::Value(inner) => Arg::Variant(Box::new(arg(inner))),
+        Variant::Structure(fields) => Arg::Struct(fields.fields().iter().map(arg).collect()),
+        Variant::Dict(dict) => Arg::Dict(dict.iter().map(|(k, v)| (arg(k), arg(v))).collect()),
+        Variant::Variant(inner) => Arg::Variant(Box::new(arg(inner))),
         _ => Arg::Unreadable,
     }
 }

@@ -166,9 +166,7 @@ async fn served_interface_matches_the_constant() {
 
     let introspectable = zbus::fdo::IntrospectableProxy::builder(&client)
         .destination(BUS_NAME)
-        .unwrap()
         .path(OBJECT_PATH)
-        .unwrap()
         .build()
         .await
         .unwrap();
