@@ -32,6 +32,7 @@ pub trait Drive {
     fn take_released(&self, bus: Bus) -> Vec<u64>;
 
     /// A duplicate of the inotify fd, for the runtime to read from.
+    /// A failure is also a warning on file namespaces.
     fn inotify_fd(&self) -> Result<OwnedFd, Error>;
 
     /// The directories to watch, if they changed since the last call.
