@@ -290,15 +290,13 @@ pub(crate) fn is_toml(name: &OsStr) -> bool {
 
 /// Sorted `*.toml` names in `dir`, including `/dev/null` links.
 fn toml_names(dir: &Path) -> Vec<OsString> {
-    let mut names: Vec<_> = fs::read_dir(dir)
-        .map(|entries| {
-            entries
-                .flatten()
-                .map(|entry| entry.file_name())
-                .filter(|name| is_toml(name))
-                .collect()
-        })
-        .unwrap_or_default();
+    let mut names: Vec<_> = fs::read_dir(dir).map_or_default(|entries| {
+        entries
+            .flatten()
+            .map(|entry| entry.file_name())
+            .filter(|name| is_toml(name))
+            .collect()
+    });
     names.sort();
     names
 }

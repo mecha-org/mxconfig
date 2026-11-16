@@ -190,8 +190,7 @@ fn args(message: &Message) -> Vec<Arg> {
         return Vec::new();
     }
     body.deserialize::<Structure>()
-        .map(|body| body.fields().iter().map(arg).collect())
-        .unwrap_or_default()
+        .map_or_default(|body| body.fields().iter().map(arg).collect())
 }
 
 /// Arguments as a zvariant structure.

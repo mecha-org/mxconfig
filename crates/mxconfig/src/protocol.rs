@@ -61,7 +61,7 @@ pub type Entry = (String, bool, String);
 
 /// The entry for `key`, set to `value` or unset.
 pub fn entry(key: &str, value: Option<&Value>) -> Entry {
-    let text = value.map(ToString::to_string).unwrap_or_default();
+    let text = value.map_or_default(ToString::to_string);
     (key.to_string(), value.is_some(), text)
 }
 
