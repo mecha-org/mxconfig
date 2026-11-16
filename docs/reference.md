@@ -320,7 +320,7 @@ A broken file in another layer is skipped, with an error diagnostic.
 
 **Writes** are atomic and locked, but not synced, so frequent writes stay cheap. A power loss can lose recent changes, but never leaves a broken file in use.
 
-**Watching.** Only the directories a namespace reads are watched, never `~/.config` or `/etc` themselves. The vendor layer isn't watched at all, since it only changes with an OS update. An app sees an admin directory created while it runs once it restarts. A daemon watches `/etc` for that one entry meanwhile.
+**Watching.** Only the directories a namespace reads are watched, never `~/.config` or `/etc` themselves. The vendor layer isn't watched at all, since it only changes with an OS update. An app sees an admin directory created while it runs once it restarts. A daemon watches `/etc` for that one entry meanwhile. If the runtime can't watch, or stops watching, each file namespace warns that it no longer follows changes.
 
 **Flatpak apps:**
 

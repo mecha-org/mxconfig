@@ -647,6 +647,11 @@ impl Drive for Source {
         fd
     }
 
+    fn inotify_lost(&self, error: std::io::Error) {
+        self.lock()
+            .unwatchable(Some(&Error::io("<inotify>", error)));
+    }
+
     fn take_watch_dirs(&self) -> Option<Vec<PathBuf>> {
         let mut inner = self.lock();
         // A closed space must not keep its watches.
@@ -1448,6 +1453,13 @@ mod tests {
         // The fd arriving later ends the warning.
         let _fd = source.inotify_fd().unwrap();
         assert!(!warned(&settings) && !warned(&later));
+
+        // Losing it later warns again.
+        source.outcomes();
+        source.inotify_lost(std::io::Error::other("read failed"));
+        let outcomes = source.outcomes();
+        assert_eq!(outcomes.len(), 2, "{outcomes:?}");
+        assert!(warned(&settings) && warned(&later));
     }
 
     /// Each call names the app it is from, as the daemon checks manifests by it.

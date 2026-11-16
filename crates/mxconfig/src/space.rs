@@ -116,7 +116,7 @@ impl Space {
             let user = layers.iter().find(|l| l.kind == LayerKind::User);
             let home = user.map(|user| user.home(&schema));
             let file = home.as_ref().map(Home::main_file);
-            // Without a lock dir, beside the home: an open file in it would keep a deleted home alive.
+            // Never inside the home, or an open lock would keep a deleted home alive.
             let lock = home.map(|home| match &roots.lock_dir {
                 Some(dir) => dir.join(format!("{}{}", schema.namespace(), paths::LOCK_SUFFIX)),
                 None => write::with_suffix(&home.dir, paths::LOCK_SUFFIX),
@@ -753,7 +753,7 @@ fn hold(
     path: &Path,
     notes: &mut Vec<Diagnostic>,
 ) -> (Option<lock::Held>, Option<u32>) {
-    // The lock file sits beside the namespace's home, where only the user may enter.
+    // Only the user may enter the lock's directory.
     let made = path.parent().map_or(Ok(()), paths::create_private_dir);
     match made.and_then(|()| lock::hold(path, schema.version())) {
         Ok(lock::Hold::Held(held)) => (Some(held), None),

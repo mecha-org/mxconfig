@@ -552,11 +552,24 @@ fn watch_files(inner: Arc<Inner>, place: Arc<Place>) {
             return eprintln!("mxconfigd: cannot watch files");
         };
         let mut buf = vec![0u8; INOTIFY_BUFFER];
-        // Nothing runs on a timer.
-        while let Ok(n) = read(&fd, &mut buf).await {
-            place.source.feed_inotify(&buf[..n]);
+        loop {
+            let lost = match read(&fd, &mut buf).await {
+                Ok(n) => {
+                    place.source.feed_inotify(&buf[..n]);
+                    false
+                }
+                Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
+                Err(e) => {
+                    eprintln!("mxconfigd: stopped watching files: {e}");
+                    place.source.inotify_lost(e);
+                    true
+                }
+            };
             let _turn = inner.draining.lock().await;
             inner.drain(&place).await;
+            if lost {
+                return;
+            }
         }
     });
 }
