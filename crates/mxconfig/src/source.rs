@@ -269,6 +269,8 @@ struct Inner {
     released: Released,
     /// Created when the runtime first asks for the fd.
     watches: Option<Watches>,
+    /// The warning for file namespaces when the runtime couldn't get the fd.
+    unwatchable: Option<Diagnostic>,
     /// The directories the spaces need watched.
     wanted: Targets,
     /// Whether `wanted` changed since it was last taken.
@@ -635,14 +637,9 @@ impl Drive for Source {
 
     fn inotify_fd(&self) -> Result<OwnedFd, Error> {
         let mut inner = self.lock();
-        if inner.watches.is_none() {
-            inner.watches = Some(Watches::new()?);
-            // Re-read, in case anything was written before the watches.
-            inner.reread(|_| Concern::Structure);
-        }
-        let watches = inner.watches.as_ref().expect("made above");
-        let fd = watches.fd().try_clone_to_owned();
-        fd.map_err(|e| Error::io("<inotify>", e))
+        let fd = inner.inotify_fd();
+        inner.unwatchable(fd.as_ref().err());
+        fd
     }
 
     fn take_watch_dirs(&self) -> Option<Vec<PathBuf>> {
@@ -1141,6 +1138,32 @@ impl Inner {
         }
     }
 
+    /// The inotify fd, made with the watches on first use.
+    fn inotify_fd(&mut self) -> Result<OwnedFd, Error> {
+        if self.watches.is_none() {
+            self.watches = Some(Watches::new()?);
+            // Re-read, in case anything was written before the watches.
+            self.reread(|_| Concern::Structure);
+        }
+        let watches = self.watches.as_ref().expect("made above");
+        let fd = watches.fd().try_clone_to_owned();
+        fd.map_err(|e| Error::io("<inotify>", e))
+    }
+
+    /// Warn the file namespaces when `error` keeps them from following changes.
+    fn unwatchable(&mut self, error: Option<&Error>) {
+        let note = error.map(|e| Diagnostic::warning(format!("not following file changes: {e}")));
+        if note == self.unwatchable {
+            return;
+        }
+        self.unwatchable = note;
+        self.refresh();
+        let namespaces: Vec<_> = self.spaces.keys().cloned().collect();
+        for namespace in namespaces {
+            self.diagnose(&namespace);
+        }
+    }
+
     /// Update the watches to match what the spaces read.
     fn refresh(&mut self) {
         // Recreate a removed user home, so it stays watched.
@@ -1154,6 +1177,11 @@ impl Inner {
             .for_each(|(d, &r)| watch::merge(&mut wanted, (d.clone(), r)));
         self.wanted_changed |= wanted != self.wanted;
         self.wanted = wanted;
+        for (space, dirs) in self.spaces.values_mut().zip(&dirs) {
+            if !dirs.is_empty() {
+                space.unwatched.extend(self.unwatchable.clone());
+            }
+        }
         let Some(watches) = &mut self.watches else {
             return;
         };
@@ -1348,6 +1376,44 @@ mod tests {
         assert_eq!(reads() - before, 2);
         let _again = other.inotify_fd().unwrap();
         assert_eq!(reads() - before, 2, "one watch set, made once");
+    }
+
+    /// Without the inotify fd, each file namespace warns once that it won't follow changes.
+    #[test]
+    fn a_failed_inotify_fd_warns_each_file_namespace_once() {
+        let tmp = tempfile::tempdir().unwrap();
+        let source = Source::with_roots(Roots::under(tmp.path()));
+        let settings = source.open_schema(Schema::parse(SCHEMA).unwrap()).unwrap();
+        source.outcomes();
+        let warned = |s: &Settings| {
+            let diagnostics = s.diagnostics();
+            diagnostics
+                .iter()
+                .any(|d| !d.is_error() && d.to_string().contains("not following file changes"))
+        };
+
+        let error = Error::io("<inotify>", std::io::Error::other("too many instances"));
+        source.lock().unwatchable(Some(&error));
+        let outcomes = source.outcomes();
+        assert!(
+            matches!(outcomes.as_slice(), [Outcome::Diagnosed { .. }]),
+            "{outcomes:?}"
+        );
+        assert!(warned(&settings));
+        source.lock().unwatchable(Some(&error));
+        assert!(
+            source.outcomes().is_empty(),
+            "the same failure is not reported again"
+        );
+
+        // A namespace opened later warns too.
+        let later = "namespace = \"org.mechanix.later\"\nversion = 1\n";
+        let later = source.open_schema(Schema::parse(later).unwrap()).unwrap();
+        assert!(warned(&later));
+
+        // The fd arriving later ends the warning.
+        let _fd = source.inotify_fd().unwrap();
+        assert!(!warned(&settings) && !warned(&later));
     }
 
     /// Each call names the app it is from, as the daemon checks manifests by it.
