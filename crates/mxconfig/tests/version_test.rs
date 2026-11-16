@@ -197,31 +197,43 @@ fn concurrent_writers_lose_nothing() {
     }
 }
 
-/// The lock sits beside the namespace's home, which is made private.
+/// The lock sits in the private lock dir, or beside the namespace's home without one.
 #[test]
-fn the_lock_sits_beside_the_home() {
+fn the_lock_sits_in_the_lock_dir() {
     use std::os::unix::fs::PermissionsExt;
     let (_tmp, roots) = tree();
     let _settings = open(&roots, &v1(NS)).unwrap();
-    let user = roots.user_dir.as_ref().unwrap();
-    assert!(user.join(format!("{NS}.lock")).is_file());
-    let mode = fs::metadata(user).unwrap().permissions().mode() & 0o777;
+    let locks = roots.lock_dir.as_ref().unwrap();
+    assert!(locks.join(format!("{NS}.lock")).is_file());
+    let mode = fs::metadata(locks).unwrap().permissions().mode() & 0o777;
     assert_eq!(mode, 0o700);
+    let user = roots.user_dir.clone().unwrap();
+    assert!(
+        !user.join(format!("{NS}.lock")).exists(),
+        "none beside the home"
+    );
+
+    let roots = Roots {
+        lock_dir: None,
+        ..roots
+    };
+    let _settings = open(&roots, &v1("org.example.other")).unwrap();
+    assert!(user.join("org.example.other.lock").is_file());
 }
 
-/// A home that can't be locked still opens, with a warning.
+/// A namespace that can't be locked still opens, with a warning.
 #[test]
 fn an_unlockable_home_opens_with_a_warning() {
     use std::os::unix::fs::PermissionsExt;
     let (_tmp, roots) = tree();
-    let user = roots.user_dir.clone().unwrap();
-    fs::create_dir_all(&user).unwrap();
-    fs::set_permissions(&user, fs::Permissions::from_mode(0o500)).unwrap();
-    if fs::write(user.join("probe"), "").is_ok() {
-        return fs::set_permissions(&user, fs::Permissions::from_mode(0o700)).unwrap(); // root
+    let locks = roots.lock_dir.clone().unwrap();
+    fs::create_dir_all(&locks).unwrap();
+    fs::set_permissions(&locks, fs::Permissions::from_mode(0o500)).unwrap();
+    if fs::write(locks.join("probe"), "").is_ok() {
+        return fs::set_permissions(&locks, fs::Permissions::from_mode(0o700)).unwrap(); // root
     }
     let settings = open(&roots, &v1(NS));
-    fs::set_permissions(&user, fs::Permissions::from_mode(0o700)).unwrap();
+    fs::set_permissions(&locks, fs::Permissions::from_mode(0o700)).unwrap();
     let settings = settings.unwrap();
     let warned = |d: &mxconfig::Diagnostic| d.message().contains("cannot lock");
     assert!(
@@ -241,14 +253,14 @@ fn an_unlockable_home_refuses_to_migrate() {
         .set("width", Value::Integer(5))
         .unwrap();
     let file = user_file(&roots);
-    let user = roots.user_dir.clone().unwrap();
-    fs::remove_file(user.join(format!("{NS}.lock"))).unwrap();
-    fs::set_permissions(&user, fs::Permissions::from_mode(0o500)).unwrap();
-    if fs::write(user.join("probe"), "").is_ok() {
-        return fs::set_permissions(&user, fs::Permissions::from_mode(0o700)).unwrap(); // root
+    let locks = roots.lock_dir.clone().unwrap();
+    fs::remove_file(locks.join(format!("{NS}.lock"))).unwrap();
+    fs::set_permissions(&locks, fs::Permissions::from_mode(0o500)).unwrap();
+    if fs::write(locks.join("probe"), "").is_ok() {
+        return fs::set_permissions(&locks, fs::Permissions::from_mode(0o700)).unwrap(); // root
     }
     let opened = open(&roots, &v2(NS));
-    fs::set_permissions(&user, fs::Permissions::from_mode(0o700)).unwrap();
+    fs::set_permissions(&locks, fs::Permissions::from_mode(0o700)).unwrap();
     let e = opened.unwrap_err();
     assert!(e.to_string().contains("can't be held"), "{e}");
     assert_eq!(recorded(&file), 1, "the file is untouched");

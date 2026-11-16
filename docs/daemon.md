@@ -50,7 +50,7 @@ An app that needs the real values, such as a settings app, checks `state()` once
 
 An app reads its settings only with the schema it was built with. So a namespace is held at one schema version at a time.
 
-**Opening holds the version.** The handle locks its version in `<dir>.lock`, next to the namespace's directory in the user layer. It lets go with its last handle, and the kernel drops the lock if the process dies. A privileged namespace needs no lock, since only the privileged service writes it.
+**Opening holds the version.** The handle locks its version in `$XDG_RUNTIME_DIR/mxconfig/<namespace>.lock`, or in `<dir>.lock` next to the namespace's directory in the user layer when there is no runtime directory or the user layer is set with `MXCONFIG_USER_DIR`. It lets go with its last handle, and the kernel drops the lock if the process dies. A privileged namespace needs no lock, since only the privileged service writes it.
 
 **The file migrates only when nothing else holds it.** An open that finds no other version migrates the file, up or down, then opens.
 

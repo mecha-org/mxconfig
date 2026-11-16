@@ -61,7 +61,7 @@ const SCHEMA_DIR_ENV: &str = "MXCONFIG_SCHEMA_DIR";
 /// The env var overriding the manifest directory.
 const MANIFEST_DIR_ENV: &str = "MXCONFIG_MANIFEST_DIR";
 
-/// Suffix of the lock file beside a namespace's user home.
+/// Suffix of a namespace's lock file.
 pub(crate) const LOCK_SUFFIX: &str = ".lock";
 
 /// The schema search path and the base directory of each layer.
@@ -75,6 +75,9 @@ pub struct Roots {
     pub admin_dir: Option<PathBuf>,
     /// The user layer, `$XDG_CONFIG_HOME`. `None` without a home directory.
     pub user_dir: Option<PathBuf>,
+    /// Version locks, in `$XDG_RUNTIME_DIR` for the standard user layer.
+    /// `None` puts each beside its namespace's user directory.
+    pub lock_dir: Option<PathBuf>,
     /// The bus this source serves clients on, as mxconfigd does.
     pub serving: Option<Bus>,
     /// Installed client manifests, one file per client.
@@ -105,6 +108,12 @@ impl Roots {
         if let Some(roots) = Sandbox::current().and_then(|s| s.roots_inside()) {
             return roots;
         }
+        let custom = env_dir(USER_DIR_ENV);
+        // Every process shares the standard user dir, so only its locks can move.
+        let runtime = custom
+            .is_none()
+            .then(|| env_dir("XDG_RUNTIME_DIR"))
+            .flatten();
         Roots {
             schema_dirs: env_dirs(SCHEMA_DIR_ENV).unwrap_or_else(|| {
                 data_dirs()
@@ -114,7 +123,8 @@ impl Roots {
             }),
             vendor_dir: Some(env_dir(VENDOR_DIR_ENV).unwrap_or_else(|| VENDOR_BASE.into())),
             admin_dir: Some(env_dir(ADMIN_DIR_ENV).unwrap_or_else(|| ADMIN_BASE.into())),
-            user_dir: env_dir(USER_DIR_ENV).or_else(config_home),
+            user_dir: custom.or_else(config_home),
+            lock_dir: runtime.map(|dir| dir.join(APP)),
             // Manifests control access, so never take them from XDG paths.
             manifest_dir: Some(
                 env_dir(MANIFEST_DIR_ENV)
@@ -131,6 +141,7 @@ impl Roots {
             vendor_dir: Some(base.join("vendor")),
             admin_dir: Some(base.join("admin")),
             user_dir: Some(base.join("user")),
+            lock_dir: Some(base.join("run")),
             manifest_dir: Some(base.join(MANIFESTS)),
             serving: None,
         }
