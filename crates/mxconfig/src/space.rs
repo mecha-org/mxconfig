@@ -116,8 +116,11 @@ impl Space {
             let user = layers.iter().find(|l| l.kind == LayerKind::User);
             let home = user.map(|user| user.home(&schema));
             let file = home.as_ref().map(Home::main_file);
-            // Beside the home, not in it: an open file would keep a deleted home alive.
-            let lock = home.map(|home| write::with_suffix(&home.dir, paths::LOCK_SUFFIX));
+            // Without a lock dir, beside the home: an open file in it would keep a deleted home alive.
+            let lock = home.map(|home| match &roots.lock_dir {
+                Some(dir) => dir.join(format!("{}{}", schema.namespace(), paths::LOCK_SUFFIX)),
+                None => write::with_suffix(&home.dir, paths::LOCK_SUFFIX),
+            });
             (file, lock)
         };
         // Only the privileged daemon writes the admin file.
