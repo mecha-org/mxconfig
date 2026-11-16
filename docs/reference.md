@@ -312,11 +312,11 @@ Main files merge key by key rather than replacing each other, so a vendor key ca
 **Sidecar files.** Next to the user's main file:
 
 - `.state` records the schema version, from the first write on, and recent migrations.
-- `.lastgood` is the last copy that parsed. A user file that fails to parse is read from it instead, with an error diagnostic, and the broken text is copied to `.broken`.
+- `.lastgood` is the last copy that parsed. A user file that fails to parse is read from it instead, with an error diagnostic, and the broken text is copied to `.broken`. So is one left empty while its last good copy isn't.
 
 A broken file in another layer is skipped, with an error diagnostic.
 
-**Writes** are atomic and locked, and sync the file once. A power loss can lose the latest change, but never leaves a broken file.
+**Writes** are atomic and locked, but not synced, so frequent writes stay cheap. A power loss can lose recent changes, but never leaves a broken file in use.
 
 **Watching.** Only the directories a namespace reads are watched, never `~/.config` or `/etc` themselves. The vendor layer isn't watched at all, since it only changes with an OS update. An app sees an admin directory created while it runs once it restarts. A daemon watches `/etc` for that one entry meanwhile.
 

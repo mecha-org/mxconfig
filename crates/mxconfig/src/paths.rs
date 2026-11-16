@@ -425,7 +425,8 @@ pub(crate) fn read_doc(
             diagnostics.push(Diagnostic::error(message).with_source(source()));
         })
         .ok()?;
-    let e = match toml::from_str::<toml::Value>(&text) {
+    let problem = match toml::from_str::<toml::Value>(&text) {
+        Ok(_) if write::emptied(path, &text) => "empty".to_string(),
         Ok(doc) => {
             if user && let Err(e) = write::snapshot(path, &text) {
                 diagnostics.push(
@@ -434,19 +435,20 @@ pub(crate) fn read_doc(
             }
             return Some(doc);
         }
-        Err(e) => toml_error(&text, &e),
+        Err(e) => format!("invalid TOML: {}", toml_error(&text, &e)),
     };
     let fallback = fs::read_to_string(write::lastgood_path(path))
         .ok()
         .and_then(|text| toml::from_str::<toml::Value>(&text).ok());
     let mut message = match fallback {
-        Some(_) => format!("invalid TOML, so its last good copy is read: {e}"),
-        None => format!("invalid TOML: {e}"),
+        Some(_) => format!("{problem}, so its last good copy is read"),
+        None => problem,
     };
     // Copy, don't move: the user may still be editing it.
     if user {
         let _ = match write::keep_aside(path, &text) {
-            Ok(aside) => write!(message, "; kept as {}", aside.display()),
+            Ok(Some(aside)) => write!(message, "; kept as {}", aside.display()),
+            Ok(None) => Ok(()),
             Err(e) => write!(message, "; not kept aside: {e}"),
         };
     }

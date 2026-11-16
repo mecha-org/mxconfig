@@ -43,26 +43,41 @@ fn read_lastgood(path: &Path) -> Option<DocumentMut> {
         .ok()
 }
 
-/// Read a file for editing, or its last good copy if it doesn't parse.
+/// Whether a crash emptied `path`: it is empty, but its last good copy isn't.
+pub(crate) fn emptied(path: &Path, text: &str) -> bool {
+    let kept = || read_lastgood(path).is_some_and(|doc| !doc.is_empty());
+    text.trim().is_empty() && kept()
+}
+
+/// `text` as a document, unless it doesn't parse or was emptied.
+fn parse_doc(path: &Path, text: &str) -> Option<DocumentMut> {
+    let doc = text.parse().ok()?;
+    (!emptied(path, text)).then_some(doc)
+}
+
+/// Read a file for editing, or its last good copy if it is broken.
 pub(crate) fn load_doc(path: &Path) -> Option<DocumentMut> {
     let text = fs::read_to_string(path).ok()?;
-    text.parse().ok().or_else(|| read_lastgood(path))
+    parse_doc(path, &text).or_else(|| read_lastgood(path))
 }
 
 /// Write a document atomically, copying a broken file aside first.
 pub(crate) fn write_doc(path: &Path, doc: &DocumentMut) -> Result<Option<PathBuf>, Error> {
     let text = fs::read_to_string(path).unwrap_or_default();
-    let broken = text.parse::<DocumentMut>().is_err();
+    let broken = parse_doc(path, &text).is_none();
     let aside = broken.then(|| keep_aside(path, &text)).transpose()?;
     commit(path, doc)?;
-    Ok(aside)
+    Ok(aside.flatten())
 }
 
-/// Save the broken `text` of `path` to `<path>.broken`.
-pub(crate) fn keep_aside(path: &Path, text: &str) -> Result<PathBuf, Error> {
+/// Save the broken `text` of `path` to `<path>.broken`, unless it is empty.
+pub(crate) fn keep_aside(path: &Path, text: &str) -> Result<Option<PathBuf>, Error> {
+    if text.trim().is_empty() {
+        return Ok(None);
+    }
     let aside = with_suffix(path, BROKEN_SUFFIX);
     write_if_new(&aside, text)?;
-    Ok(aside)
+    Ok(Some(aside))
 }
 
 /// Save `text` as the last good copy of `path`.
@@ -88,18 +103,18 @@ pub(crate) fn edit(
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
         Err(e) => return Err(Error::io(path, e)),
     };
-    let (mut doc, aside) = if let Ok(doc) = text.parse::<DocumentMut>() {
+    let (mut doc, aside) = if let Some(doc) = parse_doc(path, &text) {
         (doc, None)
     } else {
         let aside = keep_aside(path, &text)?;
-        (read_lastgood(path).unwrap_or_default(), Some(aside))
+        (read_lastgood(path).unwrap_or_default(), aside)
     };
     mutate(&mut doc);
     commit(path, &doc)?;
     Ok(aside)
 }
 
-/// Replace `path` with `bytes` atomically, keeping an existing file's mode.
+/// Replace `path` with `bytes` atomically and synced, keeping an existing file's mode.
 pub(crate) fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), Error> {
     // One sync: a crash may lose the latest write, but never leaves a partial file.
     replace(path, bytes, true)
@@ -149,10 +164,11 @@ pub(crate) fn remove_if_present(path: &Path) -> std::io::Result<()> {
     }
 }
 
-/// Write a document, then its unsynced last good copy.
+/// Write a document, then its last good copy, both unsynced.
 fn commit(path: &Path, doc: &DocumentMut) -> Result<(), Error> {
     let text = doc.to_string();
-    atomic_write(path, text.as_bytes())?;
+    // Unsynced: the rename keeps old or new content, and `emptied` catches the rest.
+    replace(path, text.as_bytes(), false)?;
     replace(&lastgood_path(path), text.as_bytes(), false)
 }
 
@@ -276,6 +292,42 @@ mod tests {
         .unwrap();
         let text = fs::read_to_string(&path).unwrap();
         assert!(!text.contains("corner_radius"), "{text}");
+    }
+
+    /// A crash can empty an unsynced file, so an empty one with a last good copy is broken.
+    #[test]
+    fn an_emptied_file_reads_and_edits_as_its_last_good_copy() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("conf.toml");
+        let read = |path: &Path| {
+            let mut diagnostics = Vec::new();
+            let doc = crate::paths::read_doc(path, true, &mut diagnostics);
+            (doc, diagnostics)
+        };
+
+        // Empty without a last good copy is just empty.
+        fs::write(&path, "").unwrap();
+        let (doc, diagnostics) = read(&path);
+        assert!(doc.unwrap().as_table().unwrap().is_empty());
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+
+        set(&path, "a", &toml::Value::Integer(1));
+        fs::write(&path, "").unwrap();
+        let (doc, diagnostics) = read(&path);
+        assert_eq!(doc.unwrap()["a"].as_integer(), Some(1));
+        assert!(
+            diagnostics[0]
+                .to_string()
+                .contains("empty, so its last good copy is read")
+        );
+
+        set(&path, "b", &toml::Value::Integer(2));
+        let text = fs::read_to_string(&path).unwrap();
+        assert!(text.contains("a = 1") && text.contains("b = 2"), "{text}");
+        assert!(
+            !with_suffix(&path, BROKEN_SUFFIX).exists(),
+            "nothing to keep aside"
+        );
     }
 
     #[test]
