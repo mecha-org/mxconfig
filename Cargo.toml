@@ -13,7 +13,7 @@ heck = "0.5"
 toml = "1"
 toml_edit = { version = "0.25", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
-nix = { version = "0.31", features = ["fs", "user"] }
+nix = { version = "0.32", features = ["fs", "user"] }
 thiserror = "2"
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
