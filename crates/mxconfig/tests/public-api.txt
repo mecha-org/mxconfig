@@ -63,6 +63,7 @@ pub fn mxconfig::runtime::Drive::close(&self, mxconfig::Bus)
 pub fn mxconfig::runtime::Drive::deliver(&self, mxconfig::Bus, mxconfig::runtime::Event)
 pub fn mxconfig::runtime::Drive::feed_inotify(&self, &[u8])
 pub fn mxconfig::runtime::Drive::inotify_fd(&self) -> core::result::Result<std::os::fd::owned::OwnedFd, mxconfig::Error>
+pub fn mxconfig::runtime::Drive::inotify_lost(&self, core::io::error::Error)
 pub fn mxconfig::runtime::Drive::kept(&self, mxconfig::Bus, u64) -> mxconfig::runtime::wire::Arg
 pub fn mxconfig::runtime::Drive::reach(&self, mxconfig::Bus)
 pub fn mxconfig::runtime::Drive::rescan(&self)
@@ -76,6 +77,7 @@ pub fn mxconfig::Source::close(&self, mxconfig::Bus)
 pub fn mxconfig::Source::deliver(&self, mxconfig::Bus, mxconfig::runtime::Event)
 pub fn mxconfig::Source::feed_inotify(&self, &[u8])
 pub fn mxconfig::Source::inotify_fd(&self) -> core::result::Result<std::os::fd::owned::OwnedFd, mxconfig::Error>
+pub fn mxconfig::Source::inotify_lost(&self, core::io::error::Error)
 pub fn mxconfig::Source::kept(&self, mxconfig::Bus, u64) -> mxconfig::runtime::wire::Arg
 pub fn mxconfig::Source::reach(&self, mxconfig::Bus)
 pub fn mxconfig::Source::rescan(&self)
@@ -251,6 +253,7 @@ pub fn mxconfig::Source::close(&self, mxconfig::Bus)
 pub fn mxconfig::Source::deliver(&self, mxconfig::Bus, mxconfig::runtime::Event)
 pub fn mxconfig::Source::feed_inotify(&self, &[u8])
 pub fn mxconfig::Source::inotify_fd(&self) -> core::result::Result<std::os::fd::owned::OwnedFd, mxconfig::Error>
+pub fn mxconfig::Source::inotify_lost(&self, core::io::error::Error)
 pub fn mxconfig::Source::kept(&self, mxconfig::Bus, u64) -> mxconfig::runtime::wire::Arg
 pub fn mxconfig::Source::reach(&self, mxconfig::Bus)
 pub fn mxconfig::Source::rescan(&self)

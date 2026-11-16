@@ -41,6 +41,9 @@ pub trait Drive {
     /// Handle bytes read from the inotify fd.
     fn feed_inotify(&self, bytes: &[u8]);
 
+    /// The runtime stopped reading the inotify fd. File namespaces warn, as for [`Drive::inotify_fd`].
+    fn inotify_lost(&self, error: std::io::Error);
+
     /// Handle a change at `path` reported by the runtime's own watcher.
     fn touched(&self, path: &Path);
 
