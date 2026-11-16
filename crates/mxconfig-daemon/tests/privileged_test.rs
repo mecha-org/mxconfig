@@ -64,7 +64,7 @@ impl Polkit {
     ) -> (bool, bool, HashMap<String, String>) {
         self.checks.lock().unwrap().push(Check {
             subject: subject.0.to_string(),
-            name: subject.1.get("name").map(text).unwrap_or_default(),
+            name: subject.1.get("name").map_or_default(text),
             action: action.to_string(),
             namespace: details.get("namespace").map(ToString::to_string),
             flags,

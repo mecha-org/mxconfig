@@ -333,9 +333,7 @@ pub fn recorded(roots: &Roots, namespace: &str) -> (i64, Vec<(i64, i64)>) {
             m["to"].as_integer().unwrap(),
         )
     };
-    let edges = applied
-        .map(|a| a.iter().map(pair).collect())
-        .unwrap_or_default();
+    let edges = applied.map_or_default(|a| a.iter().map(pair).collect());
     (state["version"].as_integer().unwrap(), edges)
 }
 
